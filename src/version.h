@@ -24,7 +24,7 @@
 // Change these two to your GitHub org/repo. Each board pulls its OWN asset (different
 // pins/panel -> different binary), named after the env: <repo>-app-<env>.bin.
 #define APP_GH_OWNER "whitewhidow"
-#define APP_GH_REPO  "terms_portal"
+#define APP_GH_REPO  "bboink-portal"
 
 #if defined(APP_BOARD_TEMBED)
 #  define APP_OTA_ENV "tembed-cc1101"

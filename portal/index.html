@@ -226,7 +226,7 @@ $('recCsv').onclick=()=>{
 
 // ---- version badge vs GitHub latest ----
 async function checkLatest(){
-  try { const r=await fetch('https://api.github.com/repos/whitewhidow/terms_portal/releases/latest',{cache:'no-store'});
+  try { const r=await fetch('https://api.github.com/repos/whitewhidow/bboink-portal/releases/latest',{cache:'no-store'});
     latestVer=((await r.json()).tag_name||'').replace(/^v/,''); } catch(e){ latestVer=null; }
   refreshOta();
 }
