@@ -41,6 +41,8 @@ void appSetup() {
 
 void appLoop() {
   captiveTick();
+  static bool first = true;
+  if (first) { first = false; showStatus(); }   // own the screen right after boot (over main's "ready")
   static uint32_t t = 0;
   if (millis() - t > 1000) {
     t = millis();
