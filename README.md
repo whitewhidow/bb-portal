@@ -1,8 +1,14 @@
-# esp32-board-app-template
+# bb-portal — Wi-Fi Terms & Access-Code Portal
 
-A starting point for an **ESP32 board app**: one codebase, many boards, controlled from
-a phone over **BLE** and updated over **WiFi**. It gives you the boring-but-fiddly parts
-so a new app is mostly `app.cpp`.
+A **captive portal** for building/guest Wi-Fi on ESP32: it serves an editable
+**terms/sign-up page**, records every submission, and hands the visitor an **access
+code** on a thank-you page. The portal HTML (both pages) is **edited over BLE** from a
+Web-Bluetooth page, `{{CODE}}` + four generic `{{VALUE1}}`–`{{VALUE4}}` slots are injected
+from config, and submissions are stored on-board (downloadable as CSV). Runs on one
+codebase across many boards (deploy on an S3 — the C5 SoftAP popup is unreliable).
+
+Built on the [esp32-board-app-template](https://github.com/whitewhidow/esp32-board-app-template)
+boilerplate (BLE control + WiFi OTA + multi-board HAL), so the infra notes below carry over.
 
 ## What you get
 
@@ -31,11 +37,11 @@ so a new app is mostly `app.cpp`.
 | env | board | chip | display | notes |
 |-----|-------|------|---------|-------|
 | `s3-headless`  | Generic ESP32-S3 (8MB) | S3 | none | BLE-only; the simplest start |
-| `tembed`       | LilyGo T-Embed CC1101  | S3 | ST7789 320×170 | |
-| `tdongle`      | LilyGo T-Dongle S3     | S3 | ST7735S 80×160 | |
+| `tembed-cc1101` | LilyGo T-Embed CC1101 | S3 | ST7789 320×170 | |
+| `tdongle-s3`    | LilyGo T-Dongle S3    | S3 | ST7735S 80×160 | |
 | `cardputer`    | M5Cardputer ADV        | S3 | ST7789 135×240 | `board = m5stack-stamps3` (required) |
-| `tdisplay-c5`  | LilyGo T-Display C5    | C5 | (headless for now) | pins in board.h |
-| `waveshare-c5` | Waveshare C5-LCD-1.47  | C5 | (headless for now) | pins in board.h |
+| `tdisplay-c5`  | LilyGo T-Display C5   | C5 | ST7789 320×170 | |
+| `waveshare-c5` | Waveshare C5-LCD-1.47 | C5 | ST7789 320×172 | |
 
 ## Use it
 
