@@ -21,6 +21,17 @@ static AsyncWebServer server(80);
 static String ssid() { String s = cfgGet("ssid", "Building-WiFi"); return s.length() ? s : "Building-WiFi"; }
 static String code() { String s = cfgGet("code", "REPLACE-WITH-CODE"); return s.length() ? s : "REPLACE-WITH-CODE"; }
 
+// Substitute the configurable placeholders into a page. Works for the start page and
+// the done page alike: {{CODE}} plus four generic slots {{VALUE1}}..{{VALUE4}} that
+// map to the value1..value4 config fields (empty if unset). Add more here as needed.
+static void applyPlaceholders(String& html) {
+  html.replace("{{CODE}}", code());
+  html.replace("{{VALUE1}}", cfgGet("value1", ""));
+  html.replace("{{VALUE2}}", cfgGet("value2", ""));
+  html.replace("{{VALUE3}}", cfgGet("value3", ""));
+  html.replace("{{VALUE4}}", cfgGet("value4", ""));
+}
+
 // doc name -> file path. Only "portal"/"done" are writable; "records" is read-only.
 static String docPath(const String& doc) {
   if (doc == "portal")  return "/portal.html";
@@ -192,18 +203,22 @@ static void startWeb() {
   server.on("/ncsi.txt",        [](AsyncWebServerRequest* r){ r->redirect(PORTAL_URL); });
   server.on("/favicon.ico",     [](AsyncWebServerRequest* r){ r->send(404); });
 
-  // the terms/form page (edited over BLE) — streamed straight from LittleFS
+  // the terms/form page (edited over BLE) — read + substitute placeholders, then send
+  // (was streamed raw; now goes through applyPlaceholders so {{VALUE1..4}}/{{CODE}}
+  // work on the START page too, not just the done page).
   server.on("/", HTTP_ANY, [](AsyncWebServerRequest* r){
-    if (LittleFS.exists("/portal.html")) r->send(LittleFS, "/portal.html", "text/html");
-    else r->send(200, "text/html", "portal not configured");
+    String html = readWhole("/portal.html");
+    if (!html.length()) { r->send(200, "text/html", "portal not configured"); return; }
+    applyPlaceholders(html);
+    r->send(200, "text/html; charset=utf-8", html);
   });
 
-  // submit: capture ALL fields, then show the (editable) done page with the code
+  // submit: capture ALL fields, then show the (editable) done page with the placeholders
   server.on("/sign", HTTP_POST, [](AsyncWebServerRequest* r){
     recordSubmission(r);
     String done = readWhole("/done.html");
     if (!done.length()) done = "<h1>Thank you</h1><p>Code: {{CODE}}</p>";
-    done.replace("{{CODE}}", code());
+    applyPlaceholders(done);
     r->send(200, "text/html; charset=utf-8", done);
   });
 

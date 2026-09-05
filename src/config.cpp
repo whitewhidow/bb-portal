@@ -7,6 +7,10 @@
 const CfgField CFG_FIELDS[] = {
   { "ssid",       "WiFi name (SSID)",    's' },   // the network residents join   (reboot to apply)
   { "code",       "Access code",         's' },   // injected into the done page as {{CODE}} (applies immediately)
+  { "value1",     "Value 1",             's' },   // generic slots injected into BOTH pages as {{VALUE1}}..{{VALUE4}}
+  { "value2",     "Value 2",             's' },
+  { "value3",     "Value 3",             's' },
+  { "value4",     "Value 4",             's' },
   { "brightness", "Brightness (0-255)",  'n' },
   { "splash",     "Boot splash",         'b' },   // default on (unset -> on; see main.cpp)
 };
