@@ -11,7 +11,7 @@
 #  endif
 #endif
 
-#define APP_VERSION "0.1.6"
+#define APP_VERSION "0.1.7"
 
 // Your app's name — the BLE advertised name + shown on the display. The portal /
 // flasher / landing pages carry their own APP_NAME const (top of each HTML) since
