@@ -26,6 +26,13 @@ static const SwitchTarget SWITCH_TARGETS[] = {
   { "PoC",    GH_ "hid-ble-poc/releases/latest/download/hid-ble-poc-app-cardputer.bin" },
 };
 static const int SWITCH_TARGET_COUNT = (int)(sizeof(SWITCH_TARGETS) / sizeof(SWITCH_TARGETS[0]));
+#elif defined(APP_BOARD_TDISPLAY_C5)
+// T-Display C5 (16MB A/B): 2-way with BBoink only — PoC has no C5 build. (The Waveshare
+// C5 is 4MB single-app on both apps, so it can't A/B-switch and stays off the mesh.)
+static const SwitchTarget SWITCH_TARGETS[] = {
+  { "BBoink", GH_ "bboink/releases/latest/download/bboink-app-tdisplay-c5.bin" },
+};
+static const int SWITCH_TARGET_COUNT = (int)(sizeof(SWITCH_TARGETS) / sizeof(SWITCH_TARGETS[0]));
 #else
 static const SwitchTarget SWITCH_TARGETS[1] = { { "", "" } };   // dummy; not in the mesh here
 static const int SWITCH_TARGET_COUNT = 0;
