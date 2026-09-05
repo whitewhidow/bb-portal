@@ -16,6 +16,7 @@ const CfgField CFG_FIELDS[] = {
   { "brightness", "Brightness (0-255)",  'n' },
   { "splash",     "Boot splash",         'b' },   // default on (unset -> on; see main.cpp)
   { "led",        "Flash LED on sign",   'b' },   // default on; hidden by cfgJson on LED-less boards
+  { "ledsecs",    "LED flash seconds",   'n' },   // default 5; how long the sign flash lasts (1-30)
 };
 const int CFG_FIELD_COUNT = sizeof(CFG_FIELDS) / sizeof(CFG_FIELDS[0]);
 
@@ -28,13 +29,21 @@ void cfgSet(const char* key, const char* val) {
   s_p.begin("cfg", false); s_p.putString(key, val); s_p.end();
 }
 
+// LED sign-flash duration in ms, from the "ledsecs" config (clamped 1..30s, default 5).
+uint32_t cfgLedMs() {
+  int sec = cfgGet("ledsecs", "5").toInt();
+  if (sec < 1) sec = 1; if (sec > 30) sec = 30;
+  return (uint32_t)sec * 1000;
+}
+
 static String jesc(const String& in) {
   String o; for (char c : in) { if (c == '"' || c == '\\') o += '\\'; o += c; } return o;
 }
 String cfgJson() {
   String s = "cfg:["; bool first = true;
   for (int i = 0; i < CFG_FIELD_COUNT; i++) {
-    if (!strcmp(CFG_FIELDS[i].key, "led") && !ledHasLed()) continue;   // hide LED toggle where there's no LED
+    // hide the LED settings entirely where there's no LED
+    if ((!strcmp(CFG_FIELDS[i].key, "led") || !strcmp(CFG_FIELDS[i].key, "ledsecs")) && !ledHasLed()) continue;
     if (!first) s += ','; first = false;
     s += "{\"k\":\""; s += CFG_FIELDS[i].key;
     s += "\",\"l\":\""; s += CFG_FIELDS[i].label;

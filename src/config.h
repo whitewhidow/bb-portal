@@ -7,7 +7,8 @@ struct CfgField { const char* key; const char* label; char type; };  // type: 's
 
 String cfgGet(const char* key, const char* def = "");
 void   cfgSet(const char* key, const char* val);   // persists immediately
-String cfgJson();                                  // "cfg:[{k,l,t,v}...]" for the portal (one BLE notify)
+String cfgJson();
+uint32_t cfgLedMs();   // LED sign-flash duration (ms) from config, clamped                                  // "cfg:[{k,l,t,v}...]" for the portal (one BLE notify)
 
 extern const CfgField CFG_FIELDS[];
 extern const int      CFG_FIELD_COUNT;

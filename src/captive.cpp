@@ -261,7 +261,7 @@ static void startWeb() {
   // submit: capture ALL fields, then show the (editable) done page with the placeholders
   server.on("/sign", HTTP_POST, [](AsyncWebServerRequest* r){
     recordSubmission(r);
-    if (cfgGet("led", "1") != "0") ledFlash(5000);   // green flash on a signed agreement (no-op if no LED)
+    if (cfgGet("led", "1") != "0") ledFlash(cfgLedMs());   // green flash on a signed agreement (no-op if no LED)
     String done = readWhole("/done.html");
     if (!done.length()) done = "<h1>Thank you</h1><p>Code: {{CODE}}</p>";
     applyPlaceholders(done);

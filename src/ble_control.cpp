@@ -117,7 +117,7 @@ static void handleCmd(const char* cmd) {
     if (eq) {
       String key = String(a).substring(0, eq - a); const char* val = eq + 1;
       cfgSet(key.c_str(), val);
-      if (key == "led" && val[0] == '1') ledFlash(5000);   // preview the sign flash when LEDs are switched on
+      if (key == "led" && val[0] == '1') ledFlash(cfgLedMs());   // preview the sign flash when LEDs are switched on
       bleNotify("cfg:ok");
     }
   } else {
