@@ -6,6 +6,7 @@
 #include "config.h"
 #include "battery.h"
 #include "switch_targets.h"
+#include "led.h"
 #include <NimBLEDevice.h>
 #include <WiFi.h>
 #include <esp_mac.h>
@@ -113,7 +114,12 @@ static void handleCmd(const char* cmd) {
     bleNotify(cfgJson().c_str());
   } else if (!strncmp(cmd, "__CFGSET__:", 11)) {               // "__CFGSET__:key=value"
     const char* a = cmd + 11; const char* eq = strchr(a, '=');
-    if (eq) { cfgSet(String(a).substring(0, eq - a).c_str(), eq + 1); bleNotify("cfg:ok"); }
+    if (eq) {
+      String key = String(a).substring(0, eq - a); const char* val = eq + 1;
+      cfgSet(key.c_str(), val);
+      if (key == "led" && val[0] == '1') ledFlash(5000);   // preview the sign flash when LEDs are switched on
+      bleNotify("cfg:ok");
+    }
   } else {
     if (!appHandleCommand(cmd)) bleNotify((String("err:unknown ") + cmd).c_str());
   }

@@ -10,6 +10,7 @@
 #include "config.h"
 #include "battery.h"
 #include "app.h"
+#include "led.h"
 
 void setup() {
   Serial.begin(115200);
@@ -27,6 +28,7 @@ void setup() {
   netBegin();                        // load saved WiFi creds (no auto-connect)
   bleBegin(APP_NAME);                // advertised BLE name (set APP_NAME in version.h)
   appSetup();
+  ledInit();
 
 #if APP_BTN >= 0
   pinMode(APP_BTN, INPUT_PULLUP);
@@ -40,6 +42,7 @@ void setup() {
 void loop() {
   bleTick();                         // process portal commands + push status
   appLoop();                         // your app
+  ledTick();                         // advance any LED flash
 
 #if APP_BTN >= 0
   // GPIO0 is the BOOT strap on most boards: ignore a press held from boot until it's

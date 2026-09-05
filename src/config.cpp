@@ -1,6 +1,8 @@
 // See config.h. Backed by NVS (Preferences), namespace "cfg".
 #include "config.h"
+#include "led.h"
 #include <Preferences.h>
+#include <string.h>
 
 // >>> YOUR APP SETTINGS <<< — add fields here; the portal auto-renders a form and
 // stores each by key. type: 's' text, 'n' number, 'b' 0/1 (checkbox).
@@ -13,6 +15,7 @@ const CfgField CFG_FIELDS[] = {
   { "value4",     "Value 4",             's' },
   { "brightness", "Brightness (0-255)",  'n' },
   { "splash",     "Boot splash",         'b' },   // default on (unset -> on; see main.cpp)
+  { "led",        "Flash LED on sign",   'b' },   // default on; hidden by cfgJson on LED-less boards
 };
 const int CFG_FIELD_COUNT = sizeof(CFG_FIELDS) / sizeof(CFG_FIELDS[0]);
 
@@ -29,9 +32,10 @@ static String jesc(const String& in) {
   String o; for (char c : in) { if (c == '"' || c == '\\') o += '\\'; o += c; } return o;
 }
 String cfgJson() {
-  String s = "cfg:[";
+  String s = "cfg:["; bool first = true;
   for (int i = 0; i < CFG_FIELD_COUNT; i++) {
-    if (i) s += ',';
+    if (!strcmp(CFG_FIELDS[i].key, "led") && !ledHasLed()) continue;   // hide LED toggle where there's no LED
+    if (!first) s += ','; first = false;
     s += "{\"k\":\""; s += CFG_FIELDS[i].key;
     s += "\",\"l\":\""; s += CFG_FIELDS[i].label;
     s += "\",\"t\":\""; s += CFG_FIELDS[i].type;

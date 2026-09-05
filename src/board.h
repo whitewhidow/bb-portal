@@ -30,6 +30,8 @@
   #define APP_BTN  0
   #define APP_BOARD_PWR_EN 15         // drive HIGH to power the LCD rail
   #define APP_ROTATION 3              // T-Embed panel is mounted flipped 180 (matches PoC/bboink)
+  #define APP_LED_PIN 14
+  #define APP_LED_COUNT 8
 
 #elif defined(APP_BOARD_TDONGLE)
   #define APP_BOARD_NAME "T-Dongle S3"
@@ -72,6 +74,8 @@
   #define APP_BTN  0
   #define APP_BATT_ADC 10          // Cardputer battery voltage on GPIO10 (M5's BAT_ADC)...
   #define APP_BATT_DIV 2.0f        // ...through a 1:1 divider (x2). Verify % on-device.
+  #define APP_LED_PIN 21             // WS2812 x1 — UNVERIFIED on the ADV
+  #define APP_LED_COUNT 1
 
 // ==== ESP32-C5 boards — ST7789 over SPI2, same LovyanGFX path as the S3 boards ======
 #elif defined(APP_BOARD_TDISPLAY_C5)
@@ -109,6 +113,8 @@
   #define OFFY     0
   #define PANEL_FREQ 40000000
   #define APP_BTN  -1
+  #define APP_LED_PIN 8               // WS2812 x1 — neopixelWrite()
+  #define APP_LED_COUNT 1
 
 // ==== Generic / headless =========================================================
 #elif defined(APP_BOARD_HEADLESS)
@@ -124,4 +130,12 @@
 // above when its panel is mounted differently (e.g. the T-Embed is flipped 180).
 #ifndef APP_ROTATION
 #define APP_ROTATION 1
+#endif
+
+// RGB status LED (WS2812/NeoPixel via neopixelWrite). Boards without one leave COUNT 0.
+#ifndef APP_LED_COUNT
+#define APP_LED_COUNT 0
+#endif
+#ifndef APP_LED_PIN
+#define APP_LED_PIN -1
 #endif
