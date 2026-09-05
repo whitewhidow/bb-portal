@@ -43,7 +43,8 @@ static LGFX lcd;
 
 // Landscape usable area; smaller panels need smaller fonts.
 #if PANEL_W <= 90
-  static const int TS = 2, CTR_TY = 4, CTR_BY = 26, CTR_DY = 11, STAT_Y = 68;
+  // T-Dongle 160x80: small title + tight rows so a wrapped URL clears the status bar.
+  static const int TS = 1, CTR_TY = 2, CTR_BY = 12, CTR_DY = 10, STAT_Y = 68;
 #elif PANEL_W <= 140            // Cardputer — 240x135 landscape (short height): medium fonts
   static const int TS = 2, CTR_TY = 4, CTR_BY = 34, CTR_DY = 16, STAT_Y = 118;
 #else
@@ -67,12 +68,15 @@ void dispCenter(const char* header, const char* body, uint32_t color) {
   String b = body; int start = 0, y = CTR_BY;
   // Draw each source line centered; if it is wider than the panel (e.g. a long
   // page URL on a narrow board) wrap it, preferring to break just after a '/'.
+  int cw = lcd.textWidth("W"); if (cw < 1) cw = 6;              // char width at the current text size
+  int maxc = (W - 2) / cw; if (maxc < 4) maxc = 4;             // hard per-line char cap (robust on the ST7735)
   auto drawLine = [&](String ln) {
     if (ln.length() == 0) { y += CTR_DY; return; }             // blank spacer line
+    if (ln.startsWith("https://")) ln = ln.substring(8);       // scheme wastes width on tiny screens
+    else if (ln.startsWith("http://")) ln = ln.substring(7);
     while (ln.length()) {
-      int n = ln.length();
-      if (lcd.textWidth(ln.c_str()) > W) {
-        n = 1; while (n < (int)ln.length() && lcd.textWidth(ln.substring(0, n + 1).c_str()) <= W) n++;
+      int n = (int)ln.length() > maxc ? maxc : (int)ln.length();
+      if (n < (int)ln.length()) {                              // breaking: prefer just after a '/'
         int brk = -1; for (int i = n - 1; i >= n / 2 && i > 0; --i) if (ln[i] == '/') { brk = i + 1; break; }
         if (brk > 0) n = brk;
       }
