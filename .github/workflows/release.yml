@@ -1,0 +1,91 @@
+name: release
+
+# Tag a commit (git tag vX.Y.Z && git push --tags) to build every board and publish,
+# per board:  <repo>-app-<env>.bin  (app-only, for in-app OTA / self-update)
+#             <repo>-<env>.bin      (merged, full USB flash / web flasher)
+# and auto-commit the merged bins into flasher/fw/<tag>/ (keeps latest 2 + versions.json).
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
+
+env:
+  REPO: bb-portal     # <-- rename when you fork (matches the repo name)
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - name: Install PlatformIO + esptool
+        run: pip install --upgrade platformio "esptool==5.1.0"
+
+      - name: Build + package bins (app-only + merged)
+        run: |
+          set -e
+          declare -A CHIP=( [s3-headless]=esp32s3 [tembed-cc1101]=esp32s3 [tdongle-s3]=esp32s3 [cardputer]=esp32s3 [tdisplay-c5]=esp32c5 [waveshare-c5]=esp32c5 )
+          declare -A SIZE=( [s3-headless]=8MB [tembed-cc1101]=16MB [tdongle-s3]=16MB [cardputer]=8MB [tdisplay-c5]=16MB [waveshare-c5]=4MB )
+          declare -A BOOT=( [s3-headless]=0x0 [tembed-cc1101]=0x0 [tdongle-s3]=0x0 [cardputer]=0x0 [tdisplay-c5]=0x2000 [waveshare-c5]=0x2000 )
+          for env in s3-headless tembed-cc1101 tdongle-s3 cardputer tdisplay-c5 waveshare-c5; do
+            # pioarduino's C5 target occasionally resolves FRAMEWORK_DIR=None on a cold cache — retry.
+            for i in 1 2 3; do pio run -e "$env" && break; echo "retry $env ($i)"; sleep 4; done
+            BA=$(find ~/.platformio/packages -name boot_app0.bin -path '*framework-arduinoespressif32*' | head -1)
+            [ -n "$BA" ] || { echo "boot_app0 not found"; exit 1; }
+            B=.pio/build/$env
+            cp "$B/firmware.bin" "${REPO}-app-$env.bin"
+            python -m esptool --chip ${CHIP[$env]} merge-bin -o "${REPO}-$env.bin" \
+              --flash-mode dio --flash-size ${SIZE[$env]} \
+              ${BOOT[$env]} "$B/bootloader.bin" 0x8000 "$B/partitions.bin" 0xe000 "$BA" 0x10000 "$B/firmware.bin"
+          done
+
+      - name: Upload merged bins (for the flasher job)
+        uses: actions/upload-artifact@v4
+        with: { name: merged-bins, path: "${{ env.REPO }}-*.bin" }
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.bin"
+          generate_release_notes: true
+
+  publish-flasher:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: main, fetch-depth: 0 }
+      - uses: actions/download-artifact@v4
+        with: { name: merged-bins, path: _bins }
+      - name: Stage bins + regenerate versions.json (keep latest 2)
+        run: |
+          set -e
+          VER="${GITHUB_REF_NAME}"
+          mkdir -p "flasher/fw/$VER"
+          for env in s3-headless tembed-cc1101 tdongle-s3 cardputer tdisplay-c5 waveshare-c5; do
+            cp "_bins/${REPO}-$env.bin" "flasher/fw/$VER/${REPO}-$env.bin" 2>/dev/null || true
+          done
+          rm -rf _bins
+          keep=$(ls -d flasher/fw/v* | xargs -n1 basename | sort -V | tail -2)
+          for d in flasher/fw/v*; do b=$(basename "$d"); echo "$keep" | grep -qx "$b" || { echo "prune $b"; rm -rf "$d"; }; done
+          vers=$(ls -d flasher/fw/v* | xargs -n1 basename | sort -Vr | jq -R . | jq -s .)
+          jq -n --argjson versions "$vers" '{
+            boards:[
+              {env:"s3-headless",  name:"Generic ESP32-S3 (headless)", chipFamily:"ESP32-S3"},
+              {env:"tembed-cc1101",       name:"LilyGo T-Embed CC1101 / Plus",       chipFamily:"ESP32-S3"},
+              {env:"tdongle-s3",      name:"LilyGo T-Dongle S3",          chipFamily:"ESP32-S3"},
+              {env:"cardputer",    name:"M5Cardputer ADV",             chipFamily:"ESP32-S3"},
+              {env:"tdisplay-c5",  name:"LilyGo T-Display C5",         chipFamily:"ESP32-C5"},
+              {env:"waveshare-c5", name:"Waveshare ESP32-C5-LCD",      chipFamily:"ESP32-C5"}
+            ], versions:$versions }' > flasher/versions.json
+          cat flasher/versions.json
+      - name: Commit to main
+        run: |
+          git config user.name whitewhidow; git config user.email contact@branchbit.be
+          git add flasher/fw flasher/versions.json
+          git diff --cached --quiet && { echo nothing; exit 0; }
+          git commit -m "flasher: publish ${GITHUB_REF_NAME} bins (keep latest 2)"
+          git push origin HEAD:main
