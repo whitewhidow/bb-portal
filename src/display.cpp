@@ -44,6 +44,8 @@ static LGFX lcd;
 // Landscape usable area; smaller panels need smaller fonts.
 #if PANEL_W <= 90
   static const int TS = 2, CTR_TY = 4, CTR_BY = 26, CTR_DY = 11, STAT_Y = 68;
+#elif PANEL_W <= 140            // Cardputer — 240x135 landscape (short height): medium fonts
+  static const int TS = 2, CTR_TY = 4, CTR_BY = 34, CTR_DY = 16, STAT_Y = 118;
 #else
   static const int TS = 3, CTR_TY = 12, CTR_BY = 60, CTR_DY = 24, STAT_Y = 150;
 #endif
