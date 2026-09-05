@@ -126,7 +126,11 @@ function waitFor(prefix, ms=5000){
     waiters.push(w);
   });
 }
-async function req(cmd, prefix){ const p=waitFor(prefix); await send(cmd); return p; }
+async function req(cmd, prefix, ms){ const p=waitFor(prefix, ms); await send(cmd); return p; }
+// Retry a request a few times — BLE notifies can drop under WiFi(SoftAP)+BLE coexistence.
+async function reqRetry(cmd, prefix, tries=3, ms=6000){
+  for (let i=0;i<tries;i++){ try { return await req(cmd, prefix, ms); } catch(e){ if(i===tries-1) throw e; } }
+}
 
 // ---- tabs ----
 for (const t of document.querySelectorAll('.tab')) t.onclick=()=>{
@@ -280,15 +284,15 @@ $('otaRun').onclick=async()=>{
   $('otaStat').textContent='rebooting to update…'; await send('__OTA__'); setTimeout(()=>location.reload(),2500);
 };
 
-// ---- firmware switcher (hidden: 3-tap the board chip on the header) ----
+// ---- firmware switcher (hidden: 3-tap the board-name chip) ----
 (()=>{ let n=0, t=0;
   $('hBoard').onclick = async () => {
     const now=Date.now(); n=(now-t<600)?n+1:1; t=now;
     if (n<3) return; n=0;
     document.querySelector('.tab[data-tab="update"]').click();
     $('switchBox').hidden=false; $('switchMsg').textContent='loading…'; $('switchList').innerHTML='';
-    try { const line=await req('__SWITCHLIST__','sw:'); renderSwitch(line.slice(3)); }
-    catch(e){ $('switchMsg').textContent='no response from board'; }
+    try { const line=await reqRetry('__SWITCHLIST__','sw:'); renderSwitch(line.slice(3)); }
+    catch(e){ $('switchMsg').textContent='no response from board — tap again to retry'; }
   };
 })();
 function renderSwitch(csv){

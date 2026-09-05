@@ -112,7 +112,9 @@ static void handleCmd(const char* cmd) {
 }
 
 void bleTick() {
-  if (g_cmdReq) { g_cmdReq = false; handleCmd(g_cmd); }
+  // GOTCHA: bleNotify has no flush, so two notifies in one tick RACE (2nd clobbers 1st).
+  // If we just answered a command, skip the status push THIS tick so its reply survives.
+  if (g_cmdReq) { g_cmdReq = false; handleCmd(g_cmd); return; }
   // push status to the portal when it changes, plus a slow refresh so battery drifts up
   static int8_t lastW = -1, lastB = -1; static uint32_t lastPush = 0;
   if (g_connected) {
