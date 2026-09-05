@@ -78,11 +78,14 @@ static String otaDownload(void (*cb)(int, const char*), const char* url) {
 void netRequestOta() { s_bootOta = OTA_MAGIC; delay(200); ESP.restart(); }
 void netRequestSwitch(int idx) { s_bootSwitch = SWITCH_MAGIC; s_switchIdx = idx; delay(200); ESP.restart(); }
 
-static char s_otaLabel[24] = "UPDATE";           // header during a fetch (target name for a switch)
-static void otaScreen(int pct, const char* msg) {
-  (void)pct;                                     // msg already carries the % ("writing NN%")
-  dispCenter(s_otaLabel, msg, 0xF7C948);
+// Unified fetch screen (matches PoC/bboink): "FIRMWARE" header, phase line, and a
+// "-> <target>" footer pinned throughout (target = the switch sibling, or "latest").
+static char s_otaTgt[28] = "-> latest";
+static void fwScreen(const char* phase, uint32_t color) {
+  char b[72]; snprintf(b, sizeof(b), "%s\n\n%s", phase, s_otaTgt);
+  dispCenter("FIRMWARE", b, color);
 }
+static void otaScreen(int pct, const char* msg) { (void)pct; fwScreen(msg, 0xF7C948); }  // msg carries the %
 
 void netRunOtaAtBoot() {
   bool self = (s_bootOta == OTA_MAGIC);
@@ -91,19 +94,19 @@ void netRunOtaAtBoot() {
   s_bootOta = 0; s_bootSwitch = 0;
 
   // Pick the bin: a switch to a valid sibling, else this firmware's latest.
-  const char* url   = APP_OTA_URL;
-  const char* label = "UPDATE";
+  const char* url = APP_OTA_URL;
+  const char* nm  = "latest";
   if (sw && s_switchIdx >= 0 && s_switchIdx < SWITCH_TARGET_COUNT) {
-    url = SWITCH_TARGETS[s_switchIdx].url; label = SWITCH_TARGETS[s_switchIdx].name;
+    url = SWITCH_TARGETS[s_switchIdx].url; nm = SWITCH_TARGETS[s_switchIdx].name;
   }
-  strncpy(s_otaLabel, label, sizeof(s_otaLabel) - 1);   // keep the header consistent through writing
+  snprintf(s_otaTgt, sizeof(s_otaTgt), "-> %s", nm);
 
-  dispCenter(label, "connecting wifi", 0x22D3E0);
+  fwScreen("connecting wifi", 0x22D3E0);
   netBegin(); netConnect();
   uint32_t t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) delay(200);
-  if (WiFi.status() != WL_CONNECTED) { dispCenter(label, "NO WIFI", 0xE5484D); delay(2500); return; }
+  if (WiFi.status() != WL_CONNECTED) { fwScreen("NO WIFI", 0xE5484D); delay(2500); return; }
   String r = otaDownload(otaScreen, url);
-  if (r == "ok") { dispCenter(label, "booting", 0x3FB950); delay(700); ESP.restart(); }
-  dispCenter("FAILED", r.c_str(), 0xE5484D); delay(3000);   // fall through to a normal boot
+  if (r == "ok") { fwScreen("booting", 0x3FB950); delay(700); ESP.restart(); }
+  fwScreen((String("FAILED\n") + r).c_str(), 0xE5484D); delay(3000);   // fall through to a normal boot
 }
