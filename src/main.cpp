@@ -44,17 +44,37 @@ void loop() {
   appLoop();                         // your app
   ledTick();                         // advance any LED flash
 
+#if APP_HAS_DISPLAY
+  // Screen sleep: backlight off after "sleepsecs" of idle (0 = never); a button press
+  // wakes it (saves the backlight draw — the always-on SoftAP radio is the bigger heat).
+  static uint32_t lastAct = 0; static bool asleep = false, actInit = false;
+  if (!actInit) { actInit = true; lastAct = millis(); }
+  int ss = cfgGet("sleepsecs", "0").toInt();
+  if (ss > 0 && !asleep && millis() - lastAct > (uint32_t)ss * 1000) { dispOff(); asleep = true; }
+#endif
+
 #if APP_BTN >= 0
-  // GPIO0 is the BOOT strap on most boards: ignore a press held from boot until it's
+  // GPIO0/28 is the BOOT strap on most boards: ignore a press held from boot until it's
   // released once, so we don't misfire while the board is entering download mode.
   static bool ready = false, last = true;
   bool b = digitalRead(APP_BTN);
   if (!ready) { if (b == HIGH) ready = true; }
-  else if (b == LOW && last == HIGH) { /* TODO: your button click action */ }
+  else if (b == LOW && last == HIGH) {
+#if APP_HAS_DISPLAY
+    lastAct = millis();
+    if (asleep) { dispOn(); asleep = false; dispStatus(bleConnected(), netConfigured(), batteryPct()); }
+#endif
+  }
   last = b;
 #endif
 
   static uint32_t t = 0;
-  if (millis() - t > 1000) { t = millis(); dispStatus(bleConnected(), netConfigured(), batteryPct()); }
+  if (millis() - t > 1000) { t = millis();
+#if APP_HAS_DISPLAY
+    if (!asleep) dispStatus(bleConnected(), netConfigured(), batteryPct());   // don't redraw (wake) while asleep
+#else
+    dispStatus(bleConnected(), netConfigured(), batteryPct());
+#endif
+  }
   delay(10);
 }

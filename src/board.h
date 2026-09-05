@@ -94,7 +94,7 @@
   #define OFFX     35
   #define OFFY     0
   #define PANEL_FREQ 40000000
-  #define APP_BTN  -1
+  #define APP_BTN  0              // BOOT button (GPIO0)
 
 #elif defined(APP_BOARD_WAVESHARE_C5)
   #define APP_BOARD_NAME "Waveshare C5"
@@ -112,7 +112,7 @@
   #define OFFX     34
   #define OFFY     0
   #define PANEL_FREQ 40000000
-  #define APP_BTN  -1
+  #define APP_BTN  28             // BOOT button (GPIO28, C5 boot strap — bboink-verified)
   #define APP_LED_PIN 8               // WS2812 x1 — neopixelWrite()
   #define APP_LED_COUNT 1
 

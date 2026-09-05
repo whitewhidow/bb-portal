@@ -1,6 +1,7 @@
 // See config.h. Backed by NVS (Preferences), namespace "cfg".
 #include "config.h"
 #include "led.h"
+#include "board.h"
 #include <Preferences.h>
 #include <string.h>
 
@@ -15,8 +16,9 @@ const CfgField CFG_FIELDS[] = {
   { "value4",     "Value 4",             's' },
   { "brightness", "Brightness (0-255)",  'n' },
   { "splash",     "Boot splash",         'b' },   // default on (unset -> on; see main.cpp)
+  { "sleepsecs",  "Screen off after (s)",'n' },   // 0 = never; backlight off after idle, button wakes (display boards)
+  { "ledsecs",    "LED flash seconds",   'n' },   // default 5; SAVED BEFORE "led" so the led=1 demo reads the fresh value
   { "led",        "Flash LED on sign",   'b' },   // default on; hidden by cfgJson on LED-less boards
-  { "ledsecs",    "LED flash seconds",   'n' },   // default 5; how long the sign flash lasts (1-30)
 };
 const int CFG_FIELD_COUNT = sizeof(CFG_FIELDS) / sizeof(CFG_FIELDS[0]);
 
@@ -42,8 +44,11 @@ static String jesc(const String& in) {
 String cfgJson() {
   String s = "cfg:["; bool first = true;
   for (int i = 0; i < CFG_FIELD_COUNT; i++) {
-    // hide the LED settings entirely where there's no LED
+    // hide the LED settings where there's no LED, and the sleep setting where there's no screen
     if ((!strcmp(CFG_FIELDS[i].key, "led") || !strcmp(CFG_FIELDS[i].key, "ledsecs")) && !ledHasLed()) continue;
+#if !APP_HAS_DISPLAY
+    if (!strcmp(CFG_FIELDS[i].key, "sleepsecs")) continue;
+#endif
     if (!first) s += ','; first = false;
     s += "{\"k\":\""; s += CFG_FIELDS[i].key;
     s += "\",\"l\":\""; s += CFG_FIELDS[i].label;
