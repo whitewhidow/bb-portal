@@ -29,6 +29,7 @@
   #define PANEL_FREQ 40000000
   #define APP_BTN  0
   #define APP_BOARD_PWR_EN 15         // drive HIGH to power the LCD rail
+  #define APP_ROTATION 3              // T-Embed panel is mounted flipped 180 (matches PoC/bboink)
 
 #elif defined(APP_BOARD_TDONGLE)
   #define APP_BOARD_NAME "T-Dongle S3"
@@ -115,4 +116,10 @@
 
 #else
   #error "define an APP_BOARD_* in platformio.ini (see board.h for the options)"
+#endif
+
+// Display rotation (LovyanGFX setRotation). Default landscape; a board overrides it
+// above when its panel is mounted differently (e.g. the T-Embed is flipped 180).
+#ifndef APP_ROTATION
+#define APP_ROTATION 1
 #endif

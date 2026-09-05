@@ -52,7 +52,7 @@ void dispBegin() {
 #ifdef APP_BOARD_PWR_EN
   pinMode(APP_BOARD_PWR_EN, OUTPUT); digitalWrite(APP_BOARD_PWR_EN, HIGH);
 #endif
-  lcd.init(); lcd.setRotation(1); lcd.setBrightness(200); lcd.fillScreen(0x000000u);
+  lcd.init(); lcd.setRotation(APP_ROTATION); lcd.setBrightness(200); lcd.fillScreen(0x000000u);
 }
 
 void dispCenter(const char* header, const char* body, uint32_t color) {
