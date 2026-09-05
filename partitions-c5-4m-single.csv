@@ -1,0 +1,8 @@
+# Waveshare ESP32-C5-LCD — 4MB SINGLE-APP layout. bb-portal's C5 app (~1.8MB) does NOT
+# fit the 1.75MB A/B slots of partitions-c5-4m.csv, so the Waveshare gets one big app
+# slot (USB-flash only, no self-OTA — the C5 isn't in the switch mesh anyway).
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x5000,
+otadata,    data, ota,      0xe000,   0x2000,
+app0,       app,  ota_0,    0x10000,  0x2C0000,
+littlefs,   data, spiffs,   0x2D0000, 0x130000,
