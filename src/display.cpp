@@ -63,12 +63,27 @@ void dispCenter(const char* header, const char* body, uint32_t color) {
   { int x = (W - lcd.textWidth(header))/2; if (x<0) x=0; lcd.setCursor(x, CTR_TY); lcd.print(header); }
   lcd.setTextColor(lcd.color888(0xC8,0xD2,0xDA), 0x000000u); lcd.setTextSize(TS-1<1?1:TS-1);
   String b = body; int start = 0, y = CTR_BY;
+  // Draw each source line centered; if it is wider than the panel (e.g. a long
+  // page URL on a narrow board) wrap it, preferring to break just after a '/'.
+  auto drawLine = [&](String ln) {
+    if (ln.length() == 0) { y += CTR_DY; return; }             // blank spacer line
+    while (ln.length()) {
+      int n = ln.length();
+      if (lcd.textWidth(ln.c_str()) > W) {
+        n = 1; while (n < (int)ln.length() && lcd.textWidth(ln.substring(0, n + 1).c_str()) <= W) n++;
+        int brk = -1; for (int i = n - 1; i >= n / 2 && i > 0; --i) if (ln[i] == '/') { brk = i + 1; break; }
+        if (brk > 0) n = brk;
+      }
+      String piece = ln.substring(0, n);
+      int x = (W - lcd.textWidth(piece.c_str())) / 2; if (x < 0) x = 0;
+      lcd.setCursor(x, y); lcd.print(piece); y += CTR_DY;
+      ln = ln.substring(n);
+    }
+  };
   while (true) {
     int nl = b.indexOf('\n', start);
-    String ln = (nl<0) ? b.substring(start) : b.substring(start, nl);
-    int x = (W - lcd.textWidth(ln.c_str()))/2; if (x<0) x=0;
-    lcd.setCursor(x, y); lcd.print(ln); y += CTR_DY;
-    if (nl<0) break; start = nl+1;
+    drawLine((nl < 0) ? b.substring(start) : b.substring(start, nl));
+    if (nl < 0) break; start = nl + 1;
   }
 }
 

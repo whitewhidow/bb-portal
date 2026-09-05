@@ -45,3 +45,11 @@
      "https://github.com/" APP_GH_OWNER "/" APP_GH_REPO \
      "/releases/latest/download/" APP_GH_REPO "-app-" APP_OTA_ENV ".bin"
 #endif
+
+// Companion web page (Web-Bluetooth portal on GitHub Pages) — shown on the idle
+// screen so you know where to connect. Derived from owner/repo (Pages serves the
+// repo root, so the portal lives under /portal/); override in dev_secrets.h if you
+// host it elsewhere.
+#if !defined(APP_PAGE_URL)
+#  define APP_PAGE_URL "https://" APP_GH_OWNER ".github.io/" APP_GH_REPO "/portal/"
+#endif

@@ -7,6 +7,7 @@
 #include "config.h"
 #include "ble_control.h"
 #include "display.h"
+#include "version.h"
 #include <Arduino.h>
 #include "mbedtls/base64.h"
 
@@ -29,7 +30,8 @@ static size_t b64dec(const char* b64, uint8_t* out, size_t maxout) {
 static uint32_t s_lastShown = 0xFFFFFFFF;
 static void showStatus() {
   uint32_t n = captiveRecordCount();
-  String body = cfgGet("ssid", "Building-WiFi") + "\n" + String(n) + " records";
+  String body = cfgGet("ssid", "Building-WiFi") + "\n" + String(n) + " records"
+                "\nopen on phone:\n" APP_PAGE_URL;
   dispCenter("TERMS PORTAL", body.c_str(), 0x3FB950);
   s_lastShown = n;
 }
