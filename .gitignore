@@ -1,0 +1,7 @@
+.pio/
+.vscode/
+*.bin
+# ...except firmware images published to the web flasher (served by GitHub Pages).
+!flasher/fw/**/*.bin
+# secrets: a gitignored dev_secrets.h can override the OTA URL for local testing.
+src/dev_secrets.h

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Board App — Web Flasher</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3; --muted:#8b949e; --cyan:#22d3e0; }
+  body { margin:0; font:16px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--text); padding:20px; max-width:560px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:14px; margin:0 0 20px; }
+  label { display:block; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:14px 0 4px; }
+  select { width:100%; padding:11px; border-radius:10px; border:1px solid var(--border); background:var(--panel); color:var(--text); font-size:15px; }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-top:16px; }
+  .panel h3 { font-size:15px; margin:0 0 8px; } .panel ul { margin:6px 0 0; padding-left:18px; } .panel li { margin:6px 0; font-size:14px; color:var(--muted); }
+  .warn { color:#f7c948; } b { color:var(--text); }
+  esp-web-install-button { --esp-tools-button-color:#04181b; --esp-tools-button-background-color:var(--cyan); display:inline-block; margin-top:4px; }
+  a { color:var(--cyan); }
+</style>
+</head>
+<body>
+  <h1>🔧 Web Flasher</h1>
+  <p class="sub">Flash your board over USB, straight from the browser — no toolchain. Chrome/Edge on desktop.</p>
+
+  <label for="board">Board</label>
+  <select id="board"></select>
+  <label for="version">Firmware version</label>
+  <select id="version"></select>
+
+  <div style="margin:22px 0 6px">
+    <esp-web-install-button id="btn">
+      <span slot="unsupported" class="warn">This browser can't flash over USB — use <b>Chrome or Edge on desktop</b>.</span>
+      <span slot="not-allowed" class="warn">Open this page over <b>https</b>.</span>
+    </esp-web-install-button>
+  </div>
+
+  <div class="panel">
+    <h3>Before you click Install</h3>
+    <ul>
+      <li>Connect with a <b>USB-C data cable</b> and pick the serial port in the popup.</li>
+      <li>If the board runs USB-HID (no serial), or has no BOOT button, put it in <b>download mode</b> first
+          (hold BOOT + tap RESET, or tie GPIO0→GND while plugging).</li>
+      <li><b>Updating?</b> Leave <b>Erase device</b> <b>unticked</b> — settings/WiFi live in a separate partition and are preserved.</li>
+      <li class="warn">On an ESP32-C5, unplug/replug after flashing (it doesn't auto-reboot).</li>
+    </ul>
+  </div>
+
+  <p class="sub" style="margin-top:20px"><a href="../portal/">BLE portal</a> · <a href="https://github.com/whitewhidow/esp32-board-app-template">GitHub</a></p>
+
+  <script type="module" src="https://unpkg.com/esp-web-tools@10.4.0/dist/web/install-button.js?module"></script>
+  <script>
+  const APP_NAME = 'Board App';              // <-- the one place to rename (matches version.h)
+  document.title = APP_NAME + ' — Web Flasher';
+  const REPO = 'esp32-board-app-template';   // <-- rename when you fork
+  (async () => {
+    const boardSel=document.getElementById('board'), verSel=document.getElementById('version'), btn=document.getElementById('btn');
+    let blobUrl=null, cfg;
+    try { cfg = await (await fetch('./versions.json',{cache:'no-cache'})).json(); }
+    catch(e){ document.body.insertAdjacentHTML('beforeend','<p class="warn">Could not load versions.json.</p>'); return; }
+    for (const b of cfg.boards){ const o=document.createElement('option'); o.value=b.env; o.textContent=b.name; o.dataset.chip=b.chipFamily; boardSel.appendChild(o); }
+    for (const v of cfg.versions){ const o=document.createElement('option'); o.value=v; o.textContent=v; verSel.appendChild(o); }
+    function refresh(){
+      const env=boardSel.value, chip=boardSel.selectedOptions[0].dataset.chip, ver=verSel.value, name=boardSel.selectedOptions[0].textContent;
+      const bin=new URL(`./fw/${ver}/${REPO}-${env}.bin`, location.href).href;
+      const manifest={ name:`${name}`, version:ver, new_install_prompt_erase:true, builds:[{ chipFamily:chip, parts:[{ path:bin, offset:0 }] }] };
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      blobUrl=URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:'application/json'}));
+      btn.setAttribute('manifest', blobUrl);
+    }
+    boardSel.onchange=refresh; verSel.onchange=refresh; if (cfg.versions.length) refresh();
+  })();
+  </script>
+</body>
+</html>

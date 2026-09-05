@@ -1,0 +1,37 @@
+{
+  "boards": [
+    {
+      "env": "s3-headless",
+      "name": "Generic ESP32-S3 (headless)",
+      "chipFamily": "ESP32-S3"
+    },
+    {
+      "env": "tembed-cc1101",
+      "name": "LilyGo T-Embed CC1101 / Plus",
+      "chipFamily": "ESP32-S3"
+    },
+    {
+      "env": "tdongle-s3",
+      "name": "LilyGo T-Dongle S3",
+      "chipFamily": "ESP32-S3"
+    },
+    {
+      "env": "cardputer",
+      "name": "M5Cardputer ADV",
+      "chipFamily": "ESP32-S3"
+    },
+    {
+      "env": "tdisplay-c5",
+      "name": "LilyGo T-Display C5",
+      "chipFamily": "ESP32-C5"
+    },
+    {
+      "env": "waveshare-c5",
+      "name": "Waveshare ESP32-C5-LCD",
+      "chipFamily": "ESP32-C5"
+    }
+  ],
+  "versions": [
+    "v0.1.1"
+  ]
+}
