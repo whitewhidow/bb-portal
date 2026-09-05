@@ -78,9 +78,10 @@ static String otaDownload(void (*cb)(int, const char*), const char* url) {
 void netRequestOta() { s_bootOta = OTA_MAGIC; delay(200); ESP.restart(); }
 void netRequestSwitch(int idx) { s_bootSwitch = SWITCH_MAGIC; s_switchIdx = idx; delay(200); ESP.restart(); }
 
+static char s_otaLabel[24] = "UPDATE";           // header during a fetch (target name for a switch)
 static void otaScreen(int pct, const char* msg) {
-  char b[48]; snprintf(b, sizeof(b), "%s\n%d%%", msg, pct);
-  dispCenter("UPDATE", b, 0xF7C948);
+  (void)pct;                                     // msg already carries the % ("writing NN%")
+  dispCenter(s_otaLabel, msg, 0xF7C948);
 }
 
 void netRunOtaAtBoot() {
@@ -95,6 +96,7 @@ void netRunOtaAtBoot() {
   if (sw && s_switchIdx >= 0 && s_switchIdx < SWITCH_TARGET_COUNT) {
     url = SWITCH_TARGETS[s_switchIdx].url; label = SWITCH_TARGETS[s_switchIdx].name;
   }
+  strncpy(s_otaLabel, label, sizeof(s_otaLabel) - 1);   // keep the header consistent through writing
 
   dispCenter(label, "connecting wifi", 0x22D3E0);
   netBegin(); netConnect();

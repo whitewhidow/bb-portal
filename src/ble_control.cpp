@@ -81,7 +81,7 @@ static void handleCmd(const char* cmd) {
   if (!strcmp(cmd, "__VER__")) {
     bleNotify((String("ver:") + APP_VERSION + "|" + APP_BOARD_NAME).c_str());   // ONE notify
   } else if (!strcmp(cmd, "__STATUS__")) {
-    char b[48]; snprintf(b, sizeof(b), "st:ble=1:wifi=%d:batt=%d", netConnected()?1:0, batteryPct()); bleNotify(b);
+    char b[48]; snprintf(b, sizeof(b), "st:ble=1:wifi=%d:batt=%d", netConfigured()?1:0, batteryPct()); bleNotify(b);
   } else if (!strcmp(cmd, "__WIFIST__")) {
     bleNotify(netStatus().c_str());
   } else if (!strncmp(cmd, "__WIFI__:", 9)) {                 // "__WIFI__:ssid|pass"
@@ -118,7 +118,7 @@ void bleTick() {
   // push status to the portal when it changes, plus a slow refresh so battery drifts up
   static int8_t lastW = -1, lastB = -1; static uint32_t lastPush = 0;
   if (g_connected) {
-    int8_t w = netConnected() ? 1 : 0, b = batteryPct();
+    int8_t w = netConfigured() ? 1 : 0, b = batteryPct();
     if (w != lastW || b/5 != lastB/5 || millis() - lastPush > 30000) {
       lastW = w; lastB = b; lastPush = millis();
       char m[48]; snprintf(m, sizeof(m), "st:ble=1:wifi=%d:batt=%d", w, b); bleNotify(m);
