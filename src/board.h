@@ -6,7 +6,8 @@
 // A firmware-specific tweak byte for the BLE base MAC (see ble_control.cpp). If two
 // DIFFERENT firmwares run on the SAME board (e.g. an OTA "switch"), give each a
 // different tag so the host doesn't serve a stale GATT cache. One app: any fixed value.
-#define APP_BLE_MAC_TAG 0x00
+// Switch-mesh tags in use: template 0x00, PoC 0x70, bboink 0xB0, Terms Portal 0xE0.
+#define APP_BLE_MAC_TAG 0xE0
 
 // ==== ESP32-S3 boards WITH a display =============================================
 #if defined(APP_BOARD_TEMBED)

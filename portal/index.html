@@ -92,6 +92,12 @@
     <div class="sub">Reboots and flashes the latest release over WiFi, then boots it — the board disconnects, so watch its screen (or wait for it to re-advertise).</div>
     <button id="otaRun" class="warn" style="width:100%">Update firmware</button>
     <div id="otaStat" class="sub" style="margin-top:8px"></div>
+
+    <div id="switchBox" hidden style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
+      <div class="sub"><b>Switch firmware</b> — flash a sibling app onto this board over WiFi (A/B slot). NVS config &amp; WiFi carry over; on-board files (records) do <b>not</b>.</div>
+      <div id="switchList"></div>
+      <div id="switchMsg" class="sub" style="margin-top:6px"></div>
+    </div>
   </section>
 
   <div id="log"></div>
@@ -273,6 +279,30 @@ $('otaRun').onclick=async()=>{
   if (!confirm('Reboot and update to v'+latestVer+'? The board disconnects.')) return;
   $('otaStat').textContent='rebooting to update…'; await send('__OTA__'); setTimeout(()=>location.reload(),2500);
 };
+
+// ---- firmware switcher (hidden: 3-tap the board chip on the header) ----
+(()=>{ let n=0, t=0;
+  $('hBoard').onclick = async () => {
+    const now=Date.now(); n=(now-t<600)?n+1:1; t=now;
+    if (n<3) return; n=0;
+    document.querySelector('.tab[data-tab="update"]').click();
+    $('switchBox').hidden=false; $('switchMsg').textContent='loading…'; $('switchList').innerHTML='';
+    try { const line=await req('__SWITCHLIST__','sw:'); renderSwitch(line.slice(3)); }
+    catch(e){ $('switchMsg').textContent='no response from board'; }
+  };
+})();
+function renderSwitch(csv){
+  const names = csv ? csv.split('|').filter(x=>x.length) : [];
+  if (!names.length){ $('switchList').innerHTML=''; $('switchMsg').textContent='No switch targets for this board.'; return; }
+  $('switchMsg').textContent='';
+  $('switchList').innerHTML = names.map((nm,i)=>`<button class="sec swbtn" data-i="${i}" style="width:100%;margin-top:8px">Switch to ${nm}</button>`).join('');
+  for (const b of document.querySelectorAll('.swbtn')) b.onclick=()=>{
+    const i=+b.dataset.i, nm=names[i];
+    if (wifiConfigured===false){ alert('Set update WiFi first (WiFi tab) — the board needs it to download.'); return; }
+    if (!confirm('Switch this board to '+nm+'?\n\nIt reboots, downloads '+nm+' over WiFi, and boots it. NVS config carries over; on-board files (records) do not.')) return;
+    $('switchMsg').textContent='switching to '+nm+'… watch the board'; send('__SWITCH__:'+i); setTimeout(()=>location.reload(),2600);
+  };
+}
 
 // ---- connect ----
 $('connect').onclick=async()=>{

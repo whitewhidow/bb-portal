@@ -15,4 +15,6 @@ String      netStatus();                                  // "wifi:<ssid>|<state
 const char* netVersion();
 
 void        netRequestOta();      // flag a self-update + reboot (call from a BLE command)
+void        netRequestSwitch(int targetIdx);  // flag a switch to SWITCH_TARGETS[idx] + reboot
 void        netRunOtaAtBoot();    // the boot hook — call EARLY in setup(), before BLE/USB
+                                  // (handles both self-update and switch)

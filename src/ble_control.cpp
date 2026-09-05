@@ -5,6 +5,7 @@
 #include "netota.h"
 #include "config.h"
 #include "battery.h"
+#include "switch_targets.h"
 #include <NimBLEDevice.h>
 #include <WiFi.h>
 #include <esp_mac.h>
@@ -90,6 +91,16 @@ static void handleCmd(const char* cmd) {
     netClearCreds(); bleNotify("wifi:cleared");
   } else if (!strcmp(cmd, "__OTA__")) {                        // reboot-to-fetch self-update
     bleNotify("ota:0 rebooting to update — watch the board"); delay(400); netRequestOta();
+  } else if (!strcmp(cmd, "__SWITCHLIST__")) {                 // sibling firmwares for this board
+    String s = "sw:";
+    for (int i = 0; i < SWITCH_TARGET_COUNT; i++) { if (i) s += "|"; s += SWITCH_TARGETS[i].name; }
+    bleNotify(s.c_str());
+  } else if (!strncmp(cmd, "__SWITCH__:", 11)) {               // "__SWITCH__:<idx>" -> other firmware
+    int idx = atoi(cmd + 11);
+    if (idx >= 0 && idx < SWITCH_TARGET_COUNT) {
+      bleNotify((String("ota:0 switching to ") + SWITCH_TARGETS[idx].name + " — watch the board").c_str());
+      delay(400); netRequestSwitch(idx);
+    } else bleNotify("err:no such switch target");
   } else if (!strcmp(cmd, "__CFGGET__")) {                     // config schema + values
     bleNotify(cfgJson().c_str());
   } else if (!strncmp(cmd, "__CFGSET__:", 11)) {               // "__CFGSET__:key=value"
