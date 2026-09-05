@@ -10,6 +10,7 @@ void        bleTick();                      // call from loop(): process queued 
 void        bleNotify(const char* line);    // board -> portal (ONE line per call)
 bool        bleConnected();                 // is a portal connected?
 const char* bleMac();
+int         bleRssi();                      // BLE link RSSI in dBm (0 = not connected)
 
 // The app implements this (app.cpp) to handle its OWN "__CMD__" writes. Return true
 // if you handled it. Built-in commands are tried first, so you can't shadow them.

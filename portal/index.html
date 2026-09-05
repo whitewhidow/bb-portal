@@ -41,6 +41,8 @@
   <span id="hVer" class="chip">—</span>
   <span id="hBoard" class="chip"></span>
   <span id="hRecs" class="chip">0 records</span>
+  <span id="hBatt" class="chip" hidden></span>
+  <span id="hRssi" class="chip" hidden></span>
 </div>
 
 <div id="app" hidden>
@@ -147,6 +149,12 @@ function onNotify(e){
   for (const w of waiters.slice()) if (v.startsWith(w.prefix)) { clearTimeout(w.timer); waiters=waiters.filter(x=>x!==w); w.resolve(v); return; }
   if (v.startsWith('ver:'))  { const [ver,board] = v.slice(4).split('|'); curVer=ver; $('hVer').textContent='v'+ver; $('fwver').textContent='v'+ver; if(board) $('hBoard').textContent=board; refreshOta(); return; }
   if (v.startsWith('recn:')) { setRecCount(+v.slice(5)); return; }
+  if (v.startsWith('st:'))   {
+    const b=v.match(/batt=(\d+)/); if(b){ $('hBatt').textContent='🔋 '+b[1]+'%'; $('hBatt').hidden=false; }
+    const r=v.match(/rssi=(-?\d+)/); if(r){ const d=+r[1];
+      if(d){ $('hRssi').textContent='📶 '+d+' dBm'; $('hRssi').style.color = d>=-65?'var(--green)' : d>=-80?'#e5a94d' : '#e5484d'; $('hRssi').hidden=false; }
+      else { $('hRssi').hidden=true; } }
+    return; }
   if (v.startsWith('wifi:')) { const p=v.slice(5).split('|'); wifiConfigured=(p[0]&&p[0]!=='-'); $('wifiStat').textContent = 'wifi: ' + p.slice(0,2).join(' — '); return; }
   if (v.startsWith('ota:'))  { $('otaStat').textContent = v.slice(4); return; }
   if (v.startsWith('cfg:'))  { renderCfg(v.slice(4)); return; }
