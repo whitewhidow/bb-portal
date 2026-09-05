@@ -47,6 +47,11 @@ static LGFX lcd;
   static const int TS = 1, CTR_TY = 2, CTR_BY = 12, CTR_DY = 10, STAT_Y = 68;
 #elif PANEL_W <= 140            // Cardputer — 240x135 landscape (short height): medium fonts
   static const int TS = 2, CTR_TY = 4, CTR_BY = 34, CTR_DY = 16, STAT_Y = 118;
+#elif defined(APP_BOARD_TDISPLAY_C5) || defined(APP_BOARD_WAVESHARE_C5)
+  // C5 1.47" panels (320x172 landscape): tiny physical screen — smaller title + tighter
+  // rows than the 1.9" T-Embed so the idle screen (incl. the wrapped URL) fits above the
+  // status bar (kept at 150).
+  static const int TS = 2, CTR_TY = 6, CTR_BY = 32, CTR_DY = 18, STAT_Y = 150;
 #else
   static const int TS = 3, CTR_TY = 12, CTR_BY = 60, CTR_DY = 24, STAT_Y = 150;
 #endif
