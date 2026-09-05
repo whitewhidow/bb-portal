@@ -53,13 +53,13 @@
   </div>
 
   <section id="t-editor">
-    <div class="sub">Edit the captive-portal HTML served to residents. Whatever <code>&lt;input name=…&gt;</code> fields you add, the board stores every submitted value. The <b>done</b> page supports <code>{{CODE}}</code> (replaced with the access code from Config).</div>
+    <div class="sub">Edit the captive-portal HTML served to residents. Whatever <code>&lt;input name=…&gt;</code> fields you add, the board stores every submitted value. Both pages support <code>{{CODE}}</code> and <code>{{VALUE1}}</code>–<code>{{VALUE4}}</code>, replaced with the values from the Config tab. Use <b>Reset to default</b> to restore the indented starter template.</div>
     <div class="row">
       <select id="docSel" style="flex:1"><option value="portal">Terms / form page</option><option value="done">Thank-you / code page</option></select>
       <button id="docLoad" class="sec">Load</button>
     </div>
     <textarea id="docTxt" placeholder="Load a page to edit its HTML…" spellcheck="false"></textarea>
-    <div class="row"><button id="docSave" style="flex:1">Save to board</button></div>
+    <div class="row"><button id="docSave" style="flex:1">Save to board</button><button id="docReset" class="sec">Reset to default</button></div>
     <div id="docMsg" class="sub"></div>
   </section>
 
@@ -191,8 +191,20 @@ async function docSave(){
     $('docMsg').textContent='saved ✓ ('+done.slice(6)+' bytes on board)';
   } catch(e){ $('docMsg').textContent='save failed: '+e.message; }
 }
+async function docReset(){
+  const doc=$('docSel').value;
+  if (!confirm('Reset the '+doc+' page to the built-in default? This overwrites the page currently on the board.')) return;
+  $('docMsg').textContent='resetting…';
+  try {
+    const r = await req('__HRESET__:'+doc, 'hreset:');
+    if (r!=='hreset:ok') throw new Error('board refused');
+    await docLoad();                       // pull the fresh (indented) default into the editor
+    $('docMsg').textContent='reset to default ✓ — review and Save if you want to keep it';
+  } catch(e){ $('docMsg').textContent='reset failed: '+e.message; }
+}
 $('docLoad').onclick=docLoad;
 $('docSave').onclick=docSave;
+$('docReset').onclick=docReset;
 
 // ============================ Records ========================================
 async function loadRecords(){

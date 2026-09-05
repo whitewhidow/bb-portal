@@ -26,6 +26,7 @@ int    captiveDocRead(const String& doc, size_t off, uint8_t* out, size_t maxlen
 bool   captiveDocPutBegin(const String& doc);   // "portal"/"done": open temp for overwrite
 bool   captiveDocPutChunk(const uint8_t* data, size_t len);            // append raw bytes to temp
 size_t captiveDocPutEnd();                       // commit temp -> live doc, returns final size
+bool   captiveDocReset(const String& doc);       // overwrite "portal"/"done" with the built-in default
 
 // ---- submitted records --------------------------------------------------------
 uint32_t captiveRecordCount();

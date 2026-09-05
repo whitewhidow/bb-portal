@@ -43,43 +43,74 @@ static String docPath(const String& doc) {
 // ------------------------------- defaults ----------------------------------
 
 static const char DEFAULT_PORTAL[] PROGMEM =
-  "<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
-  "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-  "<title>Wi-Fi Access - Terms</title><style>"
-  "body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0e1726;color:#e8edf5}"
-  ".wrap{max-width:640px;margin:0 auto;padding:20px}h1{font-size:1.35rem}"
-  ".terms{background:#182338;border:1px solid #2a3b57;border-radius:10px;padding:14px;height:200px;"
-  "overflow:auto;font-size:.86rem;line-height:1.5}label{display:block;margin:14px 0 6px;font-weight:600}"
-  "input[type=text],input[type=number]{width:100%;padding:12px;font-size:1rem;border-radius:8px;"
-  "border:1px solid #2a3b57;background:#0b1220;color:#fff;box-sizing:border-box}"
-  ".chk{display:flex;gap:10px;margin:14px 0;font-size:.9rem}.chk input{width:20px;height:20px}"
-  "button{width:100%;padding:14px;font-size:1.05rem;font-weight:700;border:0;border-radius:8px;"
-  "background:#2f7bff;color:#fff;margin-top:8px}</style></head><body><div class='wrap'>"
-  "<h1>Welcome</h1><p>Please read and accept the terms to receive your access code.</p>"
-  "<div class='terms'><b>Terms &amp; Conditions / Legal Notice</b>"
-  "<p>[Edit this page from the BLE web portal to set your building's real legal text and fields.]</p>"
-  "<p>By entering your details below you confirm you have read and agree to these terms.</p></div>"
-  "<form method='POST' action='http://4.3.2.1/sign' accept-charset='utf-8'>"
-  "<label>Full name</label><input type='text' name='name' required maxlength='80'>"
-  "<label>Apartment / unit</label><input type='text' name='unit' required maxlength='40'>"
-  "<label>Number of people</label><input type='number' name='people' min='1' max='20'>"
-  "<label class='chk'><input type='checkbox' name='agree' value='yes' required> I have read and agree to the terms.</label>"
-  "<button type='submit'>Agree &amp; get my access code</button></form></div></body></html>";
+"<!DOCTYPE html>\n"
+"<html lang='en'>\n"
+"<head>\n"
+"  <meta charset='utf-8'>\n"
+"  <meta name='viewport' content='width=device-width,initial-scale=1'>\n"
+"  <title>Wi-Fi Access - Terms</title>\n"
+"  <style>\n"
+"    body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0e1726;color:#e8edf5}\n"
+"    .wrap{max-width:640px;margin:0 auto;padding:20px}\n"
+"    h1{font-size:1.35rem}\n"
+"    .terms{background:#182338;border:1px solid #2a3b57;border-radius:10px;padding:14px;height:200px;overflow:auto;font-size:.86rem;line-height:1.5}\n"
+"    label{display:block;margin:14px 0 6px;font-weight:600}\n"
+"    input[type=text],input[type=number]{width:100%;padding:12px;font-size:1rem;border-radius:8px;border:1px solid #2a3b57;background:#0b1220;color:#fff;box-sizing:border-box}\n"
+"    .chk{display:flex;gap:10px;margin:14px 0;font-size:.9rem}\n"
+"    .chk input{width:20px;height:20px}\n"
+"    button{width:100%;padding:14px;font-size:1.05rem;font-weight:700;border:0;border-radius:8px;background:#2f7bff;color:#fff;margin-top:8px}\n"
+"  </style>\n"
+"</head>\n"
+"<body>\n"
+"  <div class='wrap'>\n"
+"    <h1>Welcome</h1>\n"
+"    <p>Please read and accept the terms to receive your access code.</p>\n"
+"    <div class='terms'>\n"
+"      <b>Terms &amp; Conditions / Legal Notice</b>\n"
+"      <p>[Edit this page from the BLE web portal to set your building's real legal text and fields.]</p>\n"
+"      <p>By entering your details below you confirm you have read and agree to these terms.</p>\n"
+"    </div>\n"
+"    <form method='POST' action='http://4.3.2.1/sign' accept-charset='utf-8'>\n"
+"      <label>Full name</label>\n"
+"      <input type='text' name='name' required maxlength='80'>\n"
+"      <label>Apartment / unit</label>\n"
+"      <input type='text' name='unit' required maxlength='40'>\n"
+"      <label>Number of people</label>\n"
+"      <input type='number' name='people' min='1' max='20'>\n"
+"      <label class='chk'><input type='checkbox' name='agree' value='yes' required> I have read and agree to the terms.</label>\n"
+"      <button type='submit'>Agree &amp; get my access code</button>\n"
+"    </form>\n"
+"  </div>\n"
+"</body>\n"
+"</html>\n";
 
 static const char DEFAULT_DONE[] PROGMEM =
-  "<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
-  "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-  "<title>Your access code</title><style>"
-  "body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0e1726;color:#e8edf5}"
-  ".wrap{max-width:640px;margin:0 auto;padding:24px;text-align:center}"
-  ".code{font-size:2rem;font-weight:800;letter-spacing:2px;background:#12351d;border:1px solid #2f7d46;"
-  "color:#7CFFA0;border-radius:12px;padding:18px;margin:20px 0;word-break:break-all}"
-  "ol{text-align:left;line-height:1.6}</style></head><body><div class='wrap'>"
-  "<h1>Thank you</h1><p>Your acceptance has been recorded. Your access code:</p>"
-  "<div class='code'>{{CODE}}</div>"
-  "<ol><li>Write down or screenshot this code.</li>"
-  "<li>Connect to the building internet Wi-Fi.</li>"
-  "<li>Enter the code when prompted.</li></ol></div></body></html>";
+"<!DOCTYPE html>\n"
+"<html lang='en'>\n"
+"<head>\n"
+"  <meta charset='utf-8'>\n"
+"  <meta name='viewport' content='width=device-width,initial-scale=1'>\n"
+"  <title>Your access code</title>\n"
+"  <style>\n"
+"    body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0e1726;color:#e8edf5}\n"
+"    .wrap{max-width:640px;margin:0 auto;padding:24px;text-align:center}\n"
+"    .code{font-size:2rem;font-weight:800;letter-spacing:2px;background:#12351d;border:1px solid #2f7d46;color:#7CFFA0;border-radius:12px;padding:18px;margin:20px 0;word-break:break-all}\n"
+"    ol{text-align:left;line-height:1.6}\n"
+"  </style>\n"
+"</head>\n"
+"<body>\n"
+"  <div class='wrap'>\n"
+"    <h1>Thank you</h1>\n"
+"    <p>Your acceptance has been recorded. Your access code:</p>\n"
+"    <div class='code'>{{CODE}}</div>\n"
+"    <ol>\n"
+"      <li>Write down or screenshot this code.</li>\n"
+"      <li>Connect to the building internet Wi-Fi.</li>\n"
+"      <li>Enter the code when prompted.</li>\n"
+"    </ol>\n"
+"  </div>\n"
+"</body>\n"
+"</html>\n";
 
 static void writeIfMissing(const char* path, const char* body) {
   if (LittleFS.exists(path)) {                 // keep a real file, but restore a
@@ -89,6 +120,19 @@ static void writeIfMissing(const char* path, const char* body) {
   }
   File f = LittleFS.open(path, FILE_WRITE);
   if (f) { f.print(body); f.close(); }
+}
+
+// Overwrite a page with its built-in (now nicely-indented) default. Lets the editor
+// offer "Reset to default" so a board that saved an older minified page can pull the
+// readable template back.
+bool captiveDocReset(const String& doc) {
+  const char* body = (doc == "portal") ? DEFAULT_PORTAL
+                   : (doc == "done")   ? DEFAULT_DONE : nullptr;
+  if (!body) return false;
+  File f = LittleFS.open(docPath(doc), FILE_WRITE);
+  if (!f) return false;
+  f.print(body); f.close();
+  return true;
 }
 
 // --------------------------------- helpers ---------------------------------

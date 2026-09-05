@@ -90,6 +90,11 @@ bool appHandleCommand(const char* cmd) {
     showStatus();
     return true;
   }
+  if (!strncmp(cmd, "__HRESET__:", 11)) {                 // restore a page to the built-in default
+    bool ok = captiveDocReset(String(cmd + 11));
+    bleNotify(ok ? "hreset:ok" : "hreset:err");
+    return true;
+  }
   if (!strcmp(cmd, "__APREST__")) {   // apply a changed SSID live (no reboot)
     captiveRestartAp();
     showStatus();
