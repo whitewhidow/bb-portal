@@ -141,7 +141,7 @@ for (const t of document.querySelectorAll('.tab')) t.onclick=()=>{
   for (const x of document.querySelectorAll('.tab')) x.classList.toggle('active', x===t);
   for (const id of ['editor','records','config','wifi','update']) $('t-'+id).hidden = (id!==t.dataset.tab);
   if (t.dataset.tab==='update')  { checkLatest(); send('__WIFIST__'); }
-  if (t.dataset.tab==='config')  send('__CFGGET__');
+  if (t.dataset.tab==='config')  reqRetry('__CFGGET__','cfg:').then(v=>renderCfg(v.slice(4))).catch(e=>{ $('cfgMsg').textContent='config load failed: '+e.message; });
   if (t.dataset.tab==='records') loadRecords();
 };
 
@@ -220,10 +220,10 @@ $('docReset').onclick=docReset;
 async function loadRecords(){
   $('recMsg').textContent='loading…';
   try {
-    const cnt = await req('__RECN__','recn:'); setRecCount(+cnt.slice(5));
+    const cnt = await reqRetry('__RECN__','recn:'); setRecCount(+cnt.slice(5));
     let off=0,total=1,buf=[];
     while (off<total){
-      const line=await req('__HGET__:records:'+off,'hget:');
+      const line=await reqRetry('__HGET__:records:'+off,'hget:');
       const m=line.match(/^hget:(\d+):(\d+):(.*)$/); if(!m) break;
       const nextoff=+m[1]; total=+m[2]; const b64=m[3];
       if (b64){ const bin=atob(b64); for(let i=0;i<bin.length;i++) buf.push(bin.charCodeAt(i)); }
