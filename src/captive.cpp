@@ -213,9 +213,10 @@ static void startWeb() {
 }
 
 void captiveBegin() {
-  // LittleFS.begin() looks for a partition named "spiffs" by default (our tables now
-  // name it that); fall back to a "littlefs"-named partition for older tables.
-  bool fs = LittleFS.begin(true) || LittleFS.begin(true, "/littlefs", 10, "littlefs");
+  // Mount the "littlefs" data partition by LABEL (canonical family table also has a
+  // separate small "spiffs" for bboink's config, so the default first-spiffs match would
+  // grab the wrong one). Fall back to the default for older single-partition tables.
+  bool fs = LittleFS.begin(true, "/littlefs", 10, "littlefs") || LittleFS.begin(true);
   Serial.printf("[CP] LittleFS %s\n", fs ? "mounted" : "MOUNT FAILED");
 
   // Seed config defaults into NVS on first boot so the Config form shows real,

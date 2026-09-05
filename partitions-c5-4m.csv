@@ -1,7 +1,7 @@
-# ESP32-C5 4MB — A/B OTA (two 1.75MB app slots) + small LittleFS.
-# Name,     Type, SubType,  Offset,   Size,     Flags
+# 4MB A/B — one "littlefs" data partition (mount by label). template/bb-portal switch
+# pair only (bboink is single-app on 4MB, cannot A/B here).
 nvs,        data, nvs,      0x9000,   0x5000,
 otadata,    data, ota,      0xe000,   0x2000,
 app0,       app,  ota_0,    0x10000,  0x1B0000,
 app1,       app,  ota_1,    0x1C0000, 0x1B0000,
-spiffs,     data, spiffs,   0x370000, 0x90000,
+littlefs,   data, spiffs,   0x370000, 0x90000,
