@@ -110,8 +110,15 @@ static void handleCmd(const char* cmd) {
       bleNotify((String("ota:0 switching to ") + SWITCH_TARGETS[idx].name + " — watch the board").c_str());
       delay(400); netRequestSwitch(idx);
     } else bleNotify("err:no such switch target");
-  } else if (!strcmp(cmd, "__CFGGET__")) {                     // config schema + values
-    bleNotify(cfgJson().c_str());
+  } else if (!strncmp(cmd, "__CFGGET__", 10)) {                // config schema + values — CHUNKED
+    // The full cfgJson can exceed the negotiated BLE MTU (a too-big notify silently
+    // fails on the C5), so serve it in small pieces like the doc loader:
+    // "__CFGGET__[:off]" -> "cfg:<end>:<total>:<chunk-of-the-[...]-body>".
+    String body = cfgJson(); if (body.startsWith("cfg:")) body = body.substring(4);
+    size_t off = (cmd[10] == ':') ? strtoul(cmd + 11, nullptr, 10) : 0;
+    size_t total = body.length();
+    String chunk = (off < total) ? body.substring(off, off + 120) : String();
+    bleNotify((String("cfg:") + (off + chunk.length()) + ":" + total + ":" + chunk).c_str());
   } else if (!strncmp(cmd, "__CFGSET__:", 11)) {               // "__CFGSET__:key=value"
     const char* a = cmd + 11; const char* eq = strchr(a, '=');
     if (eq) {

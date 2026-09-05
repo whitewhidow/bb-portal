@@ -141,7 +141,7 @@ for (const t of document.querySelectorAll('.tab')) t.onclick=()=>{
   for (const x of document.querySelectorAll('.tab')) x.classList.toggle('active', x===t);
   for (const id of ['editor','records','config','wifi','update']) $('t-'+id).hidden = (id!==t.dataset.tab);
   if (t.dataset.tab==='update')  { checkLatest(); send('__WIFIST__'); }
-  if (t.dataset.tab==='config')  reqRetry('__CFGGET__','cfg:').then(v=>renderCfg(v.slice(4))).catch(e=>{ $('cfgMsg').textContent='config load failed: '+e.message; });
+  if (t.dataset.tab==='config')  loadConfig();
   if (t.dataset.tab==='records') loadRecords();
 };
 
@@ -160,7 +160,6 @@ function onNotify(e){
     return; }
   if (v.startsWith('wifi:')) { const p=v.slice(5).split('|'); wifiConfigured=(p[0]&&p[0]!=='-'); $('wifiStat').textContent = 'wifi: ' + p.slice(0,2).join(' — '); return; }
   if (v.startsWith('ota:'))  { $('otaStat').textContent = v.slice(4); return; }
-  if (v.startsWith('cfg:'))  { renderCfg(v.slice(4)); return; }
 }
 function setRecCount(n){ $('hRecs').textContent=n+' records'; $('recCount').textContent=n+' records'; }
 
@@ -274,6 +273,17 @@ function refreshOta(){
 }
 
 // ---- config form (auto-rendered from the firmware's fields) ----
+async function loadConfig(){   // chunked fetch (cfgJson can exceed the C5's BLE MTU as one notify)
+  try {
+    let off=0,total=1,buf='';
+    while(off<total){
+      const line=await reqRetry('__CFGGET__:'+off,'cfg:');
+      const m=line.match(/^cfg:(\d+):(\d+):([\s\S]*)$/); if(!m) break;
+      const next=+m[1]; total=+m[2]; buf+=m[3]; if(next<=off) break; off=next;
+    }
+    renderCfg(buf);
+  } catch(e){ $('cfgMsg').textContent='config load failed: '+e.message; }
+}
 function renderCfg(json){
   try { cfgFields=JSON.parse(json); } catch(e){ return; }
   let h='';
@@ -292,7 +302,7 @@ $('cfgSave').onclick=async()=>{
     await send('__CFGSET__:'+f.k+'='+val); await new Promise(r=>setTimeout(r,120)); }
   if (ssidChanged){ $('cfgMsg').textContent='saved ✓ — applying new WiFi name…'; await req('__APREST__','ap:'); }
   $('cfgMsg').textContent='saved ✓'+(ssidChanged?' — WiFi name is now live':'');
-  send('__CFGGET__');   // refresh stored values so a further edit compares correctly
+  loadConfig();   // refresh stored values so a further edit compares correctly
 };
 
 // ---- wifi / ota actions ----
