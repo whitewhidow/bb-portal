@@ -10,7 +10,13 @@ bool ledHasLed() { return APP_LED_COUNT > 0; }
 // blinks green until then. A green flash confirms an event (e.g. a portal submission).
 static uint32_t s_until = 0, s_lastToggle = 0;
 static bool     s_on = false;
-static inline void led(uint8_t r, uint8_t g, uint8_t b) { neopixelWrite(APP_LED_PIN, r, g, b); }
+static inline void led(uint8_t r, uint8_t g, uint8_t b) {
+#if defined(APP_BOARD_WAVESHARE_C5)
+  neopixelWrite(APP_LED_PIN, g, r, b);   // this board's LED has R/G swapped vs neopixelWrite's WS2812 GRB order
+#else
+  neopixelWrite(APP_LED_PIN, r, g, b);
+#endif
+}
 
 void ledInit()            { led(0, 0, 0); }        // off (also lazily inits the RMT channel)
 void ledFlash(uint32_t ms){ s_until = millis() + ms; s_lastToggle = 0; s_on = false; }

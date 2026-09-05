@@ -47,14 +47,14 @@
 
 <div id="app" hidden>
   <div class="tabs">
-    <button class="tab active" data-tab="editor">Editor</button>
-    <button class="tab" data-tab="records">Records</button>
+    <button class="tab" data-tab="editor">Editor</button>
+    <button class="tab active" data-tab="records">Records</button>
     <button class="tab" data-tab="config">Config</button>
     <button class="tab" data-tab="wifi">WiFi</button>
     <button class="tab" data-tab="update">Update</button>
   </div>
 
-  <section id="t-editor">
+  <section id="t-editor" hidden>
     <div class="sub">Edit the captive-portal HTML served to residents. Whatever <code>&lt;input name=…&gt;</code> fields you add, the board stores every submitted value. Both pages support <code>{{CODE}}</code> and <code>{{VALUE1}}</code>–<code>{{VALUE4}}</code>, replaced with the values from the Config tab. Use <b>Reset to default</b> to restore the indented starter template.</div>
     <div class="row">
       <select id="docSel" style="flex:1"><option value="portal">Terms / form page</option><option value="done">Thank-you / code page</option></select>
@@ -65,7 +65,7 @@
     <div id="docMsg" class="sub"></div>
   </section>
 
-  <section id="t-records" hidden>
+  <section id="t-records">
     <div class="row"><b id="recCount">0 records</b><span style="flex:1"></span>
       <button id="recRefresh" class="sec">Refresh</button>
       <button id="recCsv" class="sec">CSV</button>
@@ -339,7 +339,7 @@ $('connect').onclick=async()=>{
     await tx.startNotifications(); tx.addEventListener('characteristicvaluechanged', onNotify);
     $('connect').hidden=true; $('hdr').hidden=false; $('app').hidden=false;
     $('hConn').textContent=dev.name||'connected';
-    send('__VER__'); setTimeout(()=>send('__RECN__'),200); setTimeout(()=>send('__WIFIST__'),400); checkLatest();
+    send('__VER__'); setTimeout(loadRecords,250); setTimeout(()=>send('__WIFIST__'),400); checkLatest();
     setTimeout(docLoad,600);   // show the current portal HTML straight away
   } catch(e){ alert('Connect failed: '+e.message); }
 };
