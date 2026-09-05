@@ -70,6 +70,8 @@
   #define OFFY     40
   #define PANEL_FREQ 40000000
   #define APP_BTN  0
+  #define APP_BATT_ADC 10          // Cardputer battery voltage on GPIO10 (M5's BAT_ADC)...
+  #define APP_BATT_DIV 2.0f        // ...through a 1:1 divider (x2). Verify % on-device.
 
 // ==== ESP32-C5 boards — ST7789 over SPI2, same LovyanGFX path as the S3 boards ======
 #elif defined(APP_BOARD_TDISPLAY_C5)
