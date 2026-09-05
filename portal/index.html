@@ -116,7 +116,9 @@ const TX ='a0b00002-1234-4b0a-9c5e-000000000000';
 const $=id=>document.getElementById(id);
 let rxCh=null, latestVer=null, curVer='', cfgFields=[], wifiConfigured=null, recRows=[];
 
-function log(m){ const e=$('log'); if(e){ e.textContent+=m+'\n'; e.scrollTop=e.scrollHeight; } }
+function log(m){ const e=$('log'); if(!e) return; e.textContent+=m+'\n';
+  const L=e.textContent.split('\n'); if(L.length>80) e.textContent=L.slice(-80).join('\n');   // cap growth (periodic st:)
+  e.scrollTop=e.scrollHeight; }
 function send(s){ return rxCh && rxCh.writeValue(new TextEncoder().encode(s)); }
 
 // ---- request/response over BLE: send a command, await the reply line that starts with `prefix` ----
@@ -147,6 +149,7 @@ for (const t of document.querySelectorAll('.tab')) t.onclick=()=>{
 function onNotify(e){
   const v = new TextDecoder().decode(e.target.value);
   for (const w of waiters.slice()) if (v.startsWith(w.prefix)) { clearTimeout(w.timer); waiters=waiters.filter(x=>x!==w); w.resolve(v); return; }
+  log(v);   // show every unsolicited board message (incl. the ~5s st: heartbeat) as live feedback
   if (v.startsWith('ver:'))  { const [ver,board] = v.slice(4).split('|'); curVer=ver; $('hVer').textContent='v'+ver; $('fwver').textContent='v'+ver; if(board) $('hBoard').textContent=board; refreshOta(); return; }
   if (v.startsWith('recn:')) { setRecCount(+v.slice(5)); return; }
   if (v.startsWith('st:'))   {
@@ -158,7 +161,6 @@ function onNotify(e){
   if (v.startsWith('wifi:')) { const p=v.slice(5).split('|'); wifiConfigured=(p[0]&&p[0]!=='-'); $('wifiStat').textContent = 'wifi: ' + p.slice(0,2).join(' — '); return; }
   if (v.startsWith('ota:'))  { $('otaStat').textContent = v.slice(4); return; }
   if (v.startsWith('cfg:'))  { renderCfg(v.slice(4)); return; }
-  log('board: ' + v);
 }
 function setRecCount(n){ $('hRecs').textContent=n+' records'; $('recCount').textContent=n+' records'; }
 
