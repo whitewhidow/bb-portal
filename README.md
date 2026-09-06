@@ -55,6 +55,25 @@ boilerplate (BLE control + Wi-Fi OTA + multi-board HAL).
    the **T-Display C5** hops to BBoink only (the PoC has no C5 build). The 4 MB Waveshare C5 is
    single-app and stays on bb-portal.
 
+## Replace a board (adopt)
+
+Swapping an old board for a new one? The **Replace** tab lets the new board *take over the old
+one's identity*, so every device currently on the old board's Wi-Fi auto-rejoins the new one — no
+one has to reconnect by hand. It works because clients auto-rejoin an **open** network by its
+**SSID** (and, for a truly invisible swap, its **BSSID/MAC** and **channel**).
+
+1. Open **Replace** — it shows *this* board's live identity (`SSID · MAC · channel`).
+2. **Scan for boards** — lists nearby **2.4 GHz open** networks (SSID · BSSID · channel · RSSI).
+   (The C5 also scans 5 GHz; those are filtered out — the captive AP is 2.4 GHz.)
+3. **Pick the old board**, then **power the old board off** and tick the box.
+4. **Adopt** — the new board copies the old board's **SSID + channel + AP MAC** and **reboots** as
+   a drop-in replacement. Reopen **Replace** afterwards to confirm the identity took.
+
+You can also set these **by hand** in **Config**: `ssid`, `channel` (1–13), and `apmac`
+(`AA:BB:CC:DD:EE:FF`; blank = the board's own MAC). SSID and channel apply live on Save; an **AP
+MAC change needs a reboot** (Save prompts you), because the MAC can only be set before the SoftAP
+starts. **Don't run two boards with the same MAC + channel at once** — power the old one off first.
+
 ## Under the hood
 
 Built on the [boilerplate](https://github.com/whitewhidow/esp32-board-app-template), so the infra
@@ -76,9 +95,12 @@ below is shared and `app.cpp` / `config.cpp` extend it the same way.
 - **Portal** (`portal/index.html`) — Web-Bluetooth control page: a status header with a
   version pill (checked against the latest GitHub release) plus live board badges
   (uptime, BLE RSSI, battery %, free heap, free flash, and Wi-Fi client count), and
-  **Records / Editor / Config / WiFi / Update**
+  **Records / Editor / Config / Replace / WiFi / Update**
   tabs (opens on Records). Writes are serialized through a send-queue so overlapping BLE
-  ops don't collide.
+  ops don't collide. A **Board-feedback** log echoes every action (`→`) and reply (`←`),
+  filtering out background polls / chunk streams / status so only what you did shows.
+- **Replace a board** (`Replace` tab) — swap an old board for a new one and keep everyone
+  connected; see below.
 - **Web flasher** (`flasher/`) — ESP Web Tools browser USB flash of the **merged** image.
 - **CI** (`.github/workflows/release.yml`) — on a tag, builds every board, publishes
   app-only + merged bins, and auto-updates the flasher.

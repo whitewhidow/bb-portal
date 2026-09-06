@@ -53,6 +53,22 @@ Hard-won lessons baked into this template. Read before you fight them again.
   release. A gitignored `src/dev_secrets.h` can define `APP_OTA_URL` to a self-hosted test
   bin while iterating (no CI build).
 
+## Replace a board (adopt / clone identity)
+
+- **Auto-rejoin is by SSID, not by box.** Clients auto-rejoin an **open** network by its **SSID**,
+  so a new board with the same SSID picks up everyone who was on the old one — no per-client state
+  to migrate. For a truly invisible swap, also match the **channel** and clone the **AP MAC (BSSID)**.
+- **An AP MAC change only applies at boot.** `esp_wifi_set_mac(WIFI_IF_AP, …)` must run **before**
+  `WiFi.softAP()`; a live re-apply on a running AP fails (`ESP_ERR_WIFI_MODE`). So `__ADOPT__` and a
+  manual `apmac` edit both take effect via a **reboot** (`captiveBegin` applies MAC → channel → SSID).
+- **Never run two boards with the same MAC + channel at once** — it confuses clients. The adopt flow
+  forces you to confirm the old board is **off** first. During an unavoidable overlap, keep the same
+  SSID but a *different* BSSID (still auto-rejoins, just less seamless), then drop the old one.
+- **C5 scans 5 GHz too.** `__APSCAN__` filters to **2.4 GHz** (`channel ≤ 13`) and open networks —
+  the captive AP is 2.4 GHz, and `channel` is clamped to 1–13 (5 GHz values fall back to the default).
+- **Verify it took** via `__APINFO__` (the Replace tab's "this board: SSID · MAC · ch" line) — the
+  live values, so you can compare before/after a clone.
+
 ## Process
 
 - **Never tag / cut a release without an explicit go.** Committing + pushing to `main`
