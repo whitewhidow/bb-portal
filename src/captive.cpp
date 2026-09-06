@@ -164,6 +164,26 @@ static String readWhole(const String& path) {
 
 // Store EVERY posted form field as one JSON record line. No field list — whatever
 // the (editable) form submits is captured.
+// Safety net: if the records file grows past REC_MAX, keep only the last REC_KEEP
+// bytes (line-aligned) so a full LittleFS can never silently stop accepting sign-ups.
+#define REC_MAX_BYTES  (256u * 1024u)
+#define REC_KEEP_BYTES (192u * 1024u)
+static void trimRecordsIfNeeded() {
+  File f = LittleFS.open(REC_FILE, FILE_READ);
+  if (!f) return;
+  size_t sz = f.size();
+  if (sz <= REC_MAX_BYTES) { f.close(); return; }
+  f.seek(sz - REC_KEEP_BYTES);
+  while (f.available()) { if (f.read() == '\n') break; }   // align to a line start
+  File t = LittleFS.open("/records.tmp", FILE_WRITE);
+  if (!t) { f.close(); return; }
+  uint8_t buf[256]; int n;
+  while ((n = f.read(buf, sizeof(buf))) > 0) t.write(buf, n);
+  f.close(); t.close();
+  LittleFS.remove(REC_FILE); LittleFS.rename("/records.tmp", REC_FILE);
+  Serial.println("[REC] rotated — kept the newest ~192KB");
+}
+
 static void recordSubmission(AsyncWebServerRequest* req) {
   String row = "{\"id\":" + String(captiveRecordCount() + 1) +
                ",\"up\":" + String(millis()) +
@@ -179,7 +199,7 @@ static void recordSubmission(AsyncWebServerRequest* req) {
   }
   row += "}\n";
   File f = LittleFS.open(REC_FILE, FILE_APPEND);
-  if (f) { f.print(row); f.close(); Serial.print("[REC] "); Serial.print(row); }
+  if (f) { f.print(row); f.close(); Serial.print("[REC] "); Serial.print(row); trimRecordsIfNeeded(); }
   else Serial.println("[REC] open failed");
 }
 

@@ -45,6 +45,8 @@
   <span id="hRssi" class="chip" hidden></span>
   <span id="hUp" class="chip" hidden></span>
   <span id="hHeap" class="chip" hidden></span>
+  <span id="hFs" class="chip" hidden></span>
+  <span id="hCli" class="chip" hidden></span>
 </div>
 
 <div id="app" hidden>
@@ -97,7 +99,11 @@
       <button id="profSaveAs" class="sec">Save as…</button>
       <button id="profDel" class="sec">Delete</button>
     </div>
-    <div class="sub" style="margin-top:2px">Config profiles saved in this browser (not on the board) — snapshot the current config and switch between setups in a tap.</div>
+    <div class="row" style="margin-top:6px">
+      <button id="profExport" class="sec" style="flex:1">Export profiles ⤓</button>
+      <label class="sec" style="flex:1;text-align:center;padding:11px;border-radius:10px;border:1px solid var(--border);cursor:pointer">Import profiles ⤒<input id="profImport" type="file" accept="application/json,.json" hidden></label>
+    </div>
+    <div class="sub" style="margin-top:2px">Profiles are saved in this browser — each snapshots the config <b>and both HTML pages</b>, so you can switch between full setups in a tap. Export / Import moves the whole set between browsers.</div>
     <div id="cfgMsg" class="sub" style="margin-top:6px"></div>
   </section>
 
@@ -177,6 +183,7 @@ for (const t of document.querySelectorAll('.tab')) t.onclick=()=>{
 function fmtUptime(s){ const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60);
   return d? d+'d '+h+'h' : h? h+'h '+m+'m' : m? m+'m' : s+'s'; }
 function fmtReset(c){ return {1:'power-on',2:'ext reset',3:'sw restart',4:'PANIC/crash',5:'int wdt',6:'task wdt',7:'wdt',8:'deep-sleep wake',9:'BROWNOUT',11:'usb',12:'jtag'}[c] || ('reset '+c); }
+function fmtBytes(b){ const kb=b/1024; return kb>=1024 ? (kb/1024).toFixed(1)+' MB' : Math.round(kb)+' KB'; }
 
 // ---- incoming notifications ----
 function onNotify(e){
@@ -197,6 +204,13 @@ function onNotify(e){
       $('hHeap').title='free heap'+(rs?' \u00B7 last reset: '+fmtReset(+rs[1]):'');
       $('hHeap').style.color=(+hp[1]<20000||abn)?'#e5a94d':'';
       $('hHeap').hidden=false; }
+    const fs=v.match(/fs=(\d+)\/(\d+)/); if(fs){ const free=+fs[1], tot=+fs[2];
+      if(tot>0){ $('hFs').textContent='\uD83D\uDCBD '+fmtBytes(free)+' free';
+        $('hFs').title='flash: '+fmtBytes(free)+' free of '+fmtBytes(tot);
+        $('hFs').style.color=(free<tot*0.1)?'#e5a94d':''; $('hFs').hidden=false; }
+      else $('hFs').hidden=true; }
+    const cl=v.match(/cli=(\d+)/); if(cl){ const n=+cl[1];
+      $('hCli').textContent='\uD83D\uDC65 '+n; $('hCli').title=n+' device'+(n===1?'':'s')+' on the portal Wi-Fi'; $('hCli').hidden=false; }
     return; }
   if (v.startsWith('wifi:')) { const p=v.slice(5).split('|'); wifiConfigured=(p[0]&&p[0]!=='-'); $('wifiStat').textContent = 'wifi: ' + p.slice(0,2).join(' — '); return; }
   if (v.startsWith('ota:'))  { $('otaStat').textContent = v.slice(4); return; }
@@ -422,17 +436,27 @@ function profRefresh(){ const o=profAll(), sel=$('profSel'), cur=sel.value; sel.
   const d=document.createElement('option'); d.value=''; d.textContent='— saved profiles —'; sel.appendChild(d);
   Object.keys(o).sort().forEach(n=>{ const op=document.createElement('option'); op.value=n; op.textContent=n; sel.appendChild(op); });
   sel.value=cur; }
-$('profSaveAs').onclick=async()=>{ const name=(prompt('Save current config as a profile named:')||'').trim(); if(!name) return;
-  try{ await loadConfig(); const cfg={}; for(const f of cfgFields) cfg[f.k]=f.v??'';
-    const o=profAll(); o[name]={cfg}; profStore(o); profRefresh(); $('profSel').value=name;
-    $('cfgMsg').textContent='saved profile “'+name+'”'; }catch(e){ $('cfgMsg').textContent='save failed: '+e.message; } };
+$('profSaveAs').onclick=async()=>{ const name=(prompt('Save current config + pages as a profile named:')||'').trim(); if(!name) return;
+  try{ $('cfgMsg').textContent='saving profile (config + pages)…';
+    await loadConfig(); const cfg={}; for(const f of cfgFields) cfg[f.k]=f.v??'';
+    const pages={}; for(const d of ['portal','done']) pages[d]=await fetchDoc(d);
+    const o=profAll(); o[name]={cfg,pages}; profStore(o); profRefresh(); $('profSel').value=name;
+    $('cfgMsg').textContent='saved profile “'+name+'” (config + both pages)'; }catch(e){ $('cfgMsg').textContent='save failed: '+e.message; } };
 $('profLoad').onclick=async()=>{ const name=$('profSel').value; const p=name&&profAll()[name]; if(!p) return;
-  if(!confirm('Load profile “'+name+'”? This overwrites the board’s config.')) return;
+  if(!confirm('Load profile “'+name+'”? This overwrites the board’s config'+(p.pages?' and both pages':'')+'.')) return;
   $('cfgMsg').textContent='loading profile…';
   try{ for(const [k,v] of Object.entries(p.cfg||{})){ await send('__CFGSET__:'+k+'='+v); await new Promise(r=>setTimeout(r,120)); }
+    if(p.pages){ for(const d of ['portal','done']){ if(typeof p.pages[d]==='string'){ $('cfgMsg').textContent='loading “'+name+'” — '+d+' page…'; await pushDoc(d,p.pages[d]); } } }
     await loadConfig(); $('cfgMsg').textContent='loaded “'+name+'”'; }catch(e){ $('cfgMsg').textContent='load failed: '+e.message; } };
 $('profDel').onclick=()=>{ const name=$('profSel').value; if(!name) return; if(!confirm('Delete profile “'+name+'”?')) return;
   const o=profAll(); delete o[name]; profStore(o); profRefresh(); $('cfgMsg').textContent='deleted “'+name+'”'; };
+$('profExport').onclick=()=>{ const o=profAll(); if(!Object.keys(o).length){ $('cfgMsg').textContent='no profiles to export'; return; }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify({app:'bb-portal-profiles',ver:curVer,profiles:o},null,2)],{type:'application/json'}));
+  a.download='bb-portal-profiles.json'; a.click(); URL.revokeObjectURL(a.href); $('cfgMsg').textContent='exported '+Object.keys(o).length+' profile(s)'; };
+$('profImport').onchange=async(e)=>{ const file=e.target.files[0]; e.target.value=''; if(!file) return;
+  try{ const blob=JSON.parse(await file.text()); const incoming=blob.profiles||blob; if(typeof incoming!=='object') throw new Error('not a profiles file');
+    const o=profAll(); let n=0; for(const [k,val] of Object.entries(incoming)){ if(val&&val.cfg){ o[k]=val; n++; } }
+    profStore(o); profRefresh(); $('cfgMsg').textContent='imported '+n+' profile(s)'; }catch(e){ $('cfgMsg').textContent='import failed: '+e.message; } };
 profRefresh();
 
 // ---- wifi / ota actions ----
