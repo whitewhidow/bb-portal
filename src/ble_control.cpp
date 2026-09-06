@@ -5,6 +5,7 @@
 #include "netota.h"
 #include "config.h"
 #include "battery.h"
+#include "clock.h"
 #include "switch_targets.h"
 #include "led.h"
 #include <NimBLEDevice.h>
@@ -94,6 +95,8 @@ static void handleCmd(const char* cmd) {
     char b[96]; snprintf(b, sizeof(b), "st:ble=1:wifi=%d:batt=%d:rssi=%d:up=%lu:heap=%lu:rst=%d", netConfigured()?1:0, batteryPct(), bleRssi(), (unsigned long)(millis()/1000), (unsigned long)ESP.getFreeHeap(), (int)esp_reset_reason()); bleNotify(b);
   } else if (!strcmp(cmd, "__WIFIST__")) {
     bleNotify(netStatus().c_str());
+  } else if (!strncmp(cmd, "__TIME__:", 9)) {                 // phone-provided wall clock (epoch secs)
+    clockSet(strtoul(cmd + 9, nullptr, 10)); bleNotify("time:ok");
   } else if (!strcmp(cmd, "__WIFIGET__")) {                    // WiFi creds for settings export (BLE link is bonded/encrypted)
     bleNotify((String("wifiget:") + netCreds()).c_str());
   } else if (!strncmp(cmd, "__WIFI__:", 9)) {                 // "__WIFI__:ssid|pass"

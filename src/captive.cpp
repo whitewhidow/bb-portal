@@ -13,6 +13,7 @@ static const IPAddress AP_MASK(255, 255, 255, 0);
 static const String    PORTAL_URL = "http://4.3.2.1";
 #define WIFI_CHANNEL 6
 #define MAX_CLIENTS  8
+#include "clock.h"
 #define REC_FILE     "/records.jsonl"
 #define TMP_FILE     "/upload.tmp"
 
@@ -166,6 +167,7 @@ static String readWhole(const String& path) {
 static void recordSubmission(AsyncWebServerRequest* req) {
   String row = "{\"id\":" + String(captiveRecordCount() + 1) +
                ",\"up\":" + String(millis()) +
+               ",\"at\":" + String(clockNow()) +
                ",\"ip\":\"" + req->client()->remoteIP().toString() + "\"";
   int n = req->params();
   for (int i = 0; i < n; i++) {

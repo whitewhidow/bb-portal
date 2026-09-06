@@ -91,6 +91,13 @@
     </div>
     <label class="sub" style="margin-top:2px;display:block;cursor:pointer"><input type="checkbox" id="cfgNoPass"> exclude the WiFi password from the export</label>
     <div class="sub" style="margin-top:2px">Backup / restore all settings + WiFi as a JSON file — handy for provisioning several boards the same way. ⚠ The file stores the WiFi password in plain text unless you tick the box above.</div>
+    <div class="row" style="margin-top:10px">
+      <select id="profSel" class="sec" style="flex:1"><option value="">— saved profiles —</option></select>
+      <button id="profLoad" class="sec">Load</button>
+      <button id="profSaveAs" class="sec">Save as…</button>
+      <button id="profDel" class="sec">Delete</button>
+    </div>
+    <div class="sub" style="margin-top:2px">Config profiles saved in this browser (not on the board) — snapshot the current config and switch between setups in a tap.</div>
     <div id="cfgMsg" class="sub" style="margin-top:6px"></div>
   </section>
 
@@ -299,6 +306,7 @@ async function loadRecords(){
     }
     const text=new TextDecoder('utf-8').decode(new Uint8Array(buf));
     recRows = text.split('\n').filter(l=>l.trim()).map(l=>{try{return JSON.parse(l)}catch(e){return null}}).filter(Boolean);
+    recRows = recRows.map(r=>{ if(r.at && +r.at>0){ r.time=new Date(+r.at*1000).toLocaleString(); delete r.at; delete r.up; } return r; });
     renderRecords();
     $('recMsg').textContent=recRows.length?'':'no records yet';
   } catch(e){ $('recMsg').textContent='load failed: '+e.message; }
@@ -407,6 +415,26 @@ $('cfgImport').onchange=async(e)=>{
   } catch(e){ $('cfgMsg').textContent='import failed: '+e.message; }
 };
 
+// ---- config profiles (saved in this browser, not on the board) ----
+function profAll(){ try{ return JSON.parse(localStorage.getItem('bbp-profiles')||'{}'); }catch(e){ return {}; } }
+function profStore(o){ try{ localStorage.setItem('bbp-profiles', JSON.stringify(o)); }catch(e){} }
+function profRefresh(){ const o=profAll(), sel=$('profSel'), cur=sel.value; sel.innerHTML='';
+  const d=document.createElement('option'); d.value=''; d.textContent='— saved profiles —'; sel.appendChild(d);
+  Object.keys(o).sort().forEach(n=>{ const op=document.createElement('option'); op.value=n; op.textContent=n; sel.appendChild(op); });
+  sel.value=cur; }
+$('profSaveAs').onclick=async()=>{ const name=(prompt('Save current config as a profile named:')||'').trim(); if(!name) return;
+  try{ await loadConfig(); const cfg={}; for(const f of cfgFields) cfg[f.k]=f.v??'';
+    const o=profAll(); o[name]={cfg}; profStore(o); profRefresh(); $('profSel').value=name;
+    $('cfgMsg').textContent='saved profile “'+name+'”'; }catch(e){ $('cfgMsg').textContent='save failed: '+e.message; } };
+$('profLoad').onclick=async()=>{ const name=$('profSel').value; const p=name&&profAll()[name]; if(!p) return;
+  if(!confirm('Load profile “'+name+'”? This overwrites the board’s config.')) return;
+  $('cfgMsg').textContent='loading profile…';
+  try{ for(const [k,v] of Object.entries(p.cfg||{})){ await send('__CFGSET__:'+k+'='+v); await new Promise(r=>setTimeout(r,120)); }
+    await loadConfig(); $('cfgMsg').textContent='loaded “'+name+'”'; }catch(e){ $('cfgMsg').textContent='load failed: '+e.message; } };
+$('profDel').onclick=()=>{ const name=$('profSel').value; if(!name) return; if(!confirm('Delete profile “'+name+'”?')) return;
+  const o=profAll(); delete o[name]; profStore(o); profRefresh(); $('cfgMsg').textContent='deleted “'+name+'”'; };
+profRefresh();
+
 // ---- wifi / ota actions ----
 $('hVer').onclick=()=>{ if (otaState()==='update') document.querySelector('.tab[data-tab="update"]').click(); };
 $('wifiSave').onclick=()=>{ const s=$('ssid').value.trim(); if(s){ send('__WIFI__:'+s+'|'+$('wpass').value); wifiConfigured=true; } $('wifiStat').textContent='wifi: saved'; };
@@ -453,7 +481,7 @@ $('connect').onclick=async()=>{
     await tx.startNotifications(); tx.addEventListener('characteristicvaluechanged', onNotify);
     $('connect').hidden=true; $('hdr').hidden=false; $('app').hidden=false;
     $('hConn').textContent=dev.name||'connected';
-    send('__VER__'); setTimeout(loadRecords,250); setTimeout(()=>send('__WIFIST__'),400); checkLatest();
+    send('__TIME__:'+Math.floor(Date.now()/1000)); send('__VER__'); setTimeout(loadRecords,250); setTimeout(()=>send('__WIFIST__'),400); checkLatest();
     setTimeout(docLoad,600);   // show the current portal HTML straight away
   } catch(e){ alert('Connect failed: '+e.message); }
 };
