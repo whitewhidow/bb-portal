@@ -112,6 +112,12 @@ bool appHandleCommand(const char* cmd) {
     showStatus();
     return true;
   }
+  if (!strcmp(cmd, "__REBOOT__")) { bleNotify("reboot:ok"); delay(400); ESP.restart(); return true; }
+  // This board's own live SoftAP identity (so the portal can show before/after a clone took effect).
+  if (!strcmp(cmd, "__APINFO__")) {
+    bleNotify((String("apinfo:") + WiFi.softAPmacAddress() + "|" + cfgGet("ssid", "Building-WiFi") + "|" + WiFi.channel()).c_str());
+    return true;
+  }
   // "Replace a board": scan nearby 2.4GHz open APs so the portal can list them.
   if (!strcmp(cmd, "__APSCAN__")) {
     WiFi.mode(WIFI_AP_STA);                          // need STA to scan; AP stays up (clients blip during the ~2s scan)

@@ -110,6 +110,7 @@
 
   <section id="t-replace" hidden>
     <div class="sub"><b>Replace a board.</b> Take over an old board's identity so devices currently on it re-join this one automatically. Scan for the old board's open Wi-Fi, pick it, power the old board off, then Adopt — this board copies its <b>SSID, channel and MAC</b> and reboots as a drop-in replacement.</div>
+    <div id="rpSelf" style="margin-top:10px;padding:9px 11px;border:1px solid var(--border);border-radius:10px;font:12px/1.6 ui-monospace,monospace">this board: —</div>
     <button id="rpScan" style="width:100%;margin-top:10px">Scan for boards</button>
     <div id="rpList" style="margin-top:10px"></div>
     <div id="rpSel" hidden style="margin-top:12px;padding:11px;border:1px solid var(--border);border-radius:10px">
@@ -161,8 +162,8 @@ function log(m){ const e=$('log'); if(!e) return; e.textContent+=m+'\n';
   e.scrollTop=e.scrollHeight; }
 // Generic Board-feedback echo: user actions -> "→ cmd", board replies -> "← reply". Denylists keep
 // background polls, chunk streams and pure status/badge/scan-result lines out of the log.
-const QUIET_TX=['__STATUS__','__WIFIST__','__VER__','__TIME__','__CFGGET__','__HGET__','__HADD__','__RECN__','__APSCAN__'];
-const QUIET_RX=['st:','ver:','wifi:','wifiget:','ota:','cfg:','recn:','apscan:','hget:','hput:','hack:','mac:'];
+const QUIET_TX=['__STATUS__','__WIFIST__','__VER__','__TIME__','__CFGGET__','__HGET__','__HADD__','__RECN__','__APINFO__'];
+const QUIET_RX=['st:','ver:','wifi:','wifiget:','ota:','cfg:','recn:','apscan:','apinfo:','hget:','hput:','hack:','mac:'];
 function feedTx(s){ if(s && !QUIET_TX.some(q=>s.startsWith(q))) log('→ '+s); }
 function feedRx(v){ if(v && !QUIET_RX.some(q=>v.startsWith(q))) log('← '+v); }
 // Serialize GATT writes — Web Bluetooth allows only one op at a time, so overlapping
@@ -199,6 +200,7 @@ for (const t of document.querySelectorAll('.tab')) t.onclick=()=>{
   if (t.dataset.tab==='update')  { checkLatest(); send('__WIFIST__'); }
   if (t.dataset.tab==='config')  loadConfig();
   if (t.dataset.tab==='records') loadRecords();
+  if (t.dataset.tab==='replace') refreshSelf();
 };
 
 function fmtUptime(s){ const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60);
@@ -369,18 +371,27 @@ $('recCsv').onclick=()=>{
 };
 
 // ============================ Replace a board ================================
-let _apList=null, _rpSel=null;
+let _apList=null, _rpSel=null, _selfMac='';
 function rpParse(s){ const p=s.split('|'); return {ssid:p[0]||'', bssid:p[1]||'', ch:+p[2]||0, rssi:+p[3]||0}; }
+async function refreshSelf(){   // show THIS board's live AP identity (SSID/MAC/channel) to verify a clone took
+  if(!rxCh) return;
+  try { const r=await reqRetry('__APINFO__','apinfo:'); const p=r.slice(7).split('|');
+    _selfMac=(p[0]||'').toUpperCase();
+    $('rpSelf').innerHTML='this board: <b>'+esc(p[1]||'—')+'</b> · '+esc(p[0]||'—')+' · ch'+esc(p[2]||'—');
+  } catch(e){ $('rpSelf').textContent='this board: (could not read)'; }
+}
 $('rpScan').onclick=async()=>{
   if(!rxCh){ $('rpMsg').textContent='not connected'; return; }
   $('rpScan').disabled=true; $('rpMsg').textContent='scanning nearby boards…'; $('rpList').innerHTML=''; $('rpSel').hidden=true; _rpSel=null;
+  await refreshSelf();
   _apList=[];
   try {
     const done=waitFor('apscan:done', 15000); await send('__APSCAN__'); await done;
     const aps=_apList.map(rpParse).sort((a,b)=>b.rssi-a.rssi); _apList=null;
+    log('· scan: '+aps.length+' open board(s) found');
     if(!aps.length){ $('rpMsg').textContent='no open boards found — is the old board on?'; }
     else { $('rpMsg').textContent=aps.length+' open network(s) — pick the old board'; renderBoards(aps); }
-  } catch(e){ _apList=null; $('rpMsg').textContent='scan failed: '+e.message; }
+  } catch(e){ _apList=null; log('✖ scan failed: '+e.message); $('rpMsg').textContent='scan failed: '+e.message; }
   finally { $('rpScan').disabled=false; }
 };
 function renderBoards(aps){
@@ -449,13 +460,18 @@ function renderCfg(json){
 }
 $('cfgSave').onclick=async()=>{
   $('cfgMsg').textContent='saving…';
-  let ssidChanged=false;
+  let apChanged=false, macChanged=false;   // ssid/channel re-apply live; a MAC change needs a reboot
   for (const f of cfgFields){ const el=$('c_'+f.k); if(!el) continue;
     const val=f.t==='b'?(el.checked?'1':'0'):el.value;
-    if (f.k==='ssid' && val!==(f.v||'')) ssidChanged=true;
+    if ((f.k==='ssid'||f.k==='channel') && val!==(f.v||'')) apChanged=true;
+    if (f.k==='apmac' && val!==(f.v||'')) macChanged=true;
     await send('__CFGSET__:'+f.k+'='+val); await new Promise(r=>setTimeout(r,120)); }
-  if (ssidChanged){ $('cfgMsg').textContent='saved ✓ — applying new WiFi name…'; await req('__APREST__','ap:'); }
-  $('cfgMsg').textContent='saved ✓'+(ssidChanged?' — WiFi name is now live':'');
+  if (macChanged){
+    if (confirm('The AP MAC change only takes effect after a reboot. Reboot the board now?')) {
+      await send('__REBOOT__'); $('cfgMsg').textContent='rebooting — reconnect over BLE once it is back'; return; }
+    $('cfgMsg').textContent='saved ✓ — AP MAC applies on next reboot';
+  } else if (apChanged){ $('cfgMsg').textContent='saved ✓ — applying…'; await req('__APREST__','ap:'); $('cfgMsg').textContent='saved ✓ — SSID/channel now live'; }
+  else $('cfgMsg').textContent='saved ✓';
   loadConfig();   // refresh stored values so a further edit compares correctly
 };
 
