@@ -19,6 +19,8 @@ const CfgField CFG_FIELDS[] = {
   { "sleepsecs",  "Screen off after (s)",'n' },   // 0 = never; backlight off after idle, button wakes (display boards)
   { "ledsecs",    "LED flash seconds",   'n' },   // default 5; SAVED BEFORE "led" so the led=1 demo reads the fresh value
   { "led",        "Flash LED on sign",   'b' },   // default on; hidden by cfgJson on LED-less boards
+  { "channel",    "WiFi channel (1-13)", 'n' },   // SoftAP channel; match the board you're replacing (default 6)
+  { "apmac",      "Clone AP MAC",        's' },   // set by "Replace a board"; blank = use this board's own MAC (AA:BB:CC:DD:EE:FF)
 };
 const int CFG_FIELD_COUNT = sizeof(CFG_FIELDS) / sizeof(CFG_FIELDS[0]);
 

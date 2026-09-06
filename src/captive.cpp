@@ -4,6 +4,7 @@
 #include "config.h"
 #include "led.h"
 #include <WiFi.h>
+#include <esp_wifi.h>   // esp_wifi_set_mac — clone an old board's AP MAC (the "Replace a board" adopt flow)
 #include <DNSServer.h>
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
@@ -22,6 +23,24 @@ static AsyncWebServer server(80);
 
 static String ssid() { String s = cfgGet("ssid", "Building-WiFi"); return s.length() ? s : "Building-WiFi"; }
 static String code() { String s = cfgGet("code", "REPLACE-WITH-CODE"); return s.length() ? s : "REPLACE-WITH-CODE"; }
+
+// SoftAP channel from config, clamped to 2.4GHz 1-13 (the C5 scans 5GHz too, but the captive AP is 2.4GHz).
+static int chan() { int c = cfgGet("channel", "").toInt(); return (c >= 1 && c <= 13) ? c : WIFI_CHANNEL; }
+// Parse "AA:BB:CC:DD:EE:FF" -> 6 bytes. Returns false on any malformed field.
+static bool parseMac(const String& s, uint8_t out[6]) {
+  int n = sscanf(s.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &out[0], &out[1], &out[2], &out[3], &out[4], &out[5]);
+  return n == 6;
+}
+// If a cloned AP MAC is configured, apply it to the SoftAP interface (must precede WiFi.softAP()).
+// Works on S3 and C5 alike. Blank config -> keep this board's own factory MAC.
+static void applyApMac() {
+  String m = cfgGet("apmac", ""); m.trim();
+  uint8_t mac[6];
+  if (m.length() && parseMac(m, mac)) {
+    esp_err_t e = esp_wifi_set_mac(WIFI_IF_AP, mac);
+    Serial.printf("[CP] clone AP MAC %s -> %s\n", m.c_str(), e == ESP_OK ? "ok" : esp_err_to_name(e));
+  }
+}
 
 // Substitute the configurable placeholders into a page. Works for the start page and
 // the done page alike: {{CODE}} plus four generic slots {{VALUE1}}..{{VALUE4}} that
@@ -312,10 +331,11 @@ void captiveBegin() {
   writeIfMissing("/done.html",   DEFAULT_DONE);
 
   WiFi.mode(WIFI_AP);
+  applyApMac();                                     // clone an old board's AP MAC if configured (before softAP)
   WiFi.softAPConfig(AP_IP, AP_IP, AP_MASK);
-  WiFi.softAP(ssid().c_str(), nullptr /*open*/, WIFI_CHANNEL, 0, MAX_CLIENTS);
-  Serial.printf("[CP] SoftAP '%s' at %s ch%d\n", ssid().c_str(),
-                WiFi.softAPIP().toString().c_str(), WIFI_CHANNEL);
+  WiFi.softAP(ssid().c_str(), nullptr /*open*/, chan(), 0, MAX_CLIENTS);
+  Serial.printf("[CP] SoftAP '%s' at %s ch%d mac %s\n", ssid().c_str(),
+                WiFi.softAPIP().toString().c_str(), chan(), WiFi.softAPmacAddress().c_str());
 
   dnsServer.setTTL(3600);
   dnsServer.start(53, "*", AP_IP);
@@ -327,9 +347,10 @@ void captiveBegin() {
 
 void captiveRestartAp() {
   WiFi.softAPdisconnect(false);
+  applyApMac();                                     // best-effort live MAC clone (a full clone is most reliable via reboot; see __ADOPT__)
   WiFi.softAPConfig(AP_IP, AP_IP, AP_MASK);
-  WiFi.softAP(ssid().c_str(), nullptr, WIFI_CHANNEL, 0, MAX_CLIENTS);
-  Serial.printf("[CP] SoftAP re-applied: '%s'\n", ssid().c_str());
+  WiFi.softAP(ssid().c_str(), nullptr, chan(), 0, MAX_CLIENTS);
+  Serial.printf("[CP] SoftAP re-applied: '%s' ch%d mac %s\n", ssid().c_str(), chan(), WiFi.softAPmacAddress().c_str());
 }
 
 void captiveTick() { dnsServer.processNextRequest(); }

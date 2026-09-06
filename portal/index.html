@@ -54,6 +54,7 @@
     <button class="tab" data-tab="editor">Editor</button>
     <button class="tab active" data-tab="records">Records</button>
     <button class="tab" data-tab="config">Config</button>
+    <button class="tab" data-tab="replace">Replace</button>
     <button class="tab" data-tab="wifi">WiFi</button>
     <button class="tab" data-tab="update">Update</button>
   </div>
@@ -107,6 +108,19 @@
     <div id="cfgMsg" class="sub" style="margin-top:6px"></div>
   </section>
 
+  <section id="t-replace" hidden>
+    <div class="sub"><b>Replace a board.</b> Take over an old board's identity so devices currently on it re-join this one automatically. Scan for the old board's open Wi-Fi, pick it, power the old board off, then Adopt — this board copies its <b>SSID, channel and MAC</b> and reboots as a drop-in replacement.</div>
+    <button id="rpScan" style="width:100%;margin-top:10px">Scan for boards</button>
+    <div id="rpList" style="margin-top:10px"></div>
+    <div id="rpSel" hidden style="margin-top:12px;padding:11px;border:1px solid var(--border);border-radius:10px">
+      <div class="sub" style="margin:0 0 6px">Adopting <b id="rpSelName">—</b> <span id="rpSelMeta" class="sub"></span></div>
+      <div class="sub" style="color:#e5a94d;margin:0 0 8px">⚠ Power OFF the old board now — two APs with the same MAC on one channel confuse clients.</div>
+      <label class="sub" style="display:block;cursor:pointer;margin-bottom:8px"><input type="checkbox" id="rpOff"> The old board is powered off</label>
+      <button id="rpAdopt" style="width:100%" disabled>Adopt this identity + reboot</button>
+    </div>
+    <div id="rpMsg" class="sub" style="margin-top:8px"></div>
+  </section>
+
   <section id="t-wifi" hidden>
     <div class="sub">WiFi here is <b>only</b> for firmware updates (the portal itself is an open AP). Configured here, brought up by the board at the update reboot.</div>
     <div id="wifiStat" class="sub">wifi: —</div>
@@ -145,11 +159,18 @@ let rxCh=null, latestVer=null, curVer='', cfgFields=[], wifiConfigured=null, rec
 function log(m){ const e=$('log'); if(!e) return; e.textContent+=m+'\n';
   const L=e.textContent.split('\n'); if(L.length>80) e.textContent=L.slice(-80).join('\n');   // cap growth (periodic st:)
   e.scrollTop=e.scrollHeight; }
+// Generic Board-feedback echo: user actions -> "→ cmd", board replies -> "← reply". Denylists keep
+// background polls, chunk streams and pure status/badge/scan-result lines out of the log.
+const QUIET_TX=['__STATUS__','__WIFIST__','__VER__','__TIME__','__CFGGET__','__HGET__','__HADD__','__RECN__','__APSCAN__'];
+const QUIET_RX=['st:','ver:','wifi:','wifiget:','ota:','cfg:','recn:','apscan:','hget:','hput:','hack:','mac:'];
+function feedTx(s){ if(s && !QUIET_TX.some(q=>s.startsWith(q))) log('→ '+s); }
+function feedRx(v){ if(v && !QUIET_RX.some(q=>v.startsWith(q))) log('← '+v); }
 // Serialize GATT writes — Web Bluetooth allows only one op at a time, so overlapping
 // sends (e.g. the switcher tapped while records/config are still loading) otherwise
 // reject with "GATT operation already in progress". Chain every write behind the last.
 let _tx = Promise.resolve();
 function send(s){
+  feedTx(s);
   if (!rxCh) return Promise.resolve();
   const data = new TextEncoder().encode(s);
   _tx = _tx.catch(()=>{}).then(()=> rxCh.writeValue(data));
@@ -174,7 +195,7 @@ async function reqRetry(cmd, prefix, tries=3, ms=6000){
 // ---- tabs ----
 for (const t of document.querySelectorAll('.tab')) t.onclick=()=>{
   for (const x of document.querySelectorAll('.tab')) x.classList.toggle('active', x===t);
-  for (const id of ['editor','records','config','wifi','update']) $('t-'+id).hidden = (id!==t.dataset.tab);
+  for (const id of ['editor','records','config','replace','wifi','update']) $('t-'+id).hidden = (id!==t.dataset.tab);
   if (t.dataset.tab==='update')  { checkLatest(); send('__WIFIST__'); }
   if (t.dataset.tab==='config')  loadConfig();
   if (t.dataset.tab==='records') loadRecords();
@@ -188,8 +209,8 @@ function fmtBytes(b){ const kb=b/1024; return kb>=1024 ? (kb/1024).toFixed(1)+' 
 // ---- incoming notifications ----
 function onNotify(e){
   const v = new TextDecoder().decode(e.target.value);
+  feedRx(v);   // echo every meaningful board reply (→/← trail); polls/chunks/status stay quiet
   for (const w of waiters.slice()) if (v.startsWith(w.prefix)) { clearTimeout(w.timer); waiters=waiters.filter(x=>x!==w); w.resolve(v); return; }
-  log(v);   // show every unsolicited board message (incl. the ~5s st: heartbeat) as live feedback
   if (v.startsWith('ver:'))  { const [ver,board] = v.slice(4).split('|'); curVer=ver; $('hVer').textContent='v'+ver; $('fwver').textContent='v'+ver; if(board) $('hBoard').textContent=board; refreshOta(); return; }
   if (v.startsWith('recn:')) { setRecCount(+v.slice(5)); return; }
   if (v.startsWith('st:'))   {
@@ -212,6 +233,7 @@ function onNotify(e){
     const cl=v.match(/cli=(\d+)/); if(cl){ const n=+cl[1];
       $('hCli').textContent='\uD83D\uDC65 '+n; $('hCli').title=n+' device'+(n===1?'':'s')+' on the portal Wi-Fi'; $('hCli').hidden=false; }
     return; }
+  if (v.startsWith('apscan:')) { if (v!=='apscan:done' && _apList) _apList.push(v.slice(7)); return; }   // 'apscan:done' resolves its waiter above
   if (v.startsWith('wifi:')) { const p=v.slice(5).split('|'); wifiConfigured=(p[0]&&p[0]!=='-'); $('wifiStat').textContent = 'wifi: ' + p.slice(0,2).join(' — '); return; }
   if (v.startsWith('ota:'))  { $('otaStat').textContent = v.slice(4); return; }
 }
@@ -344,6 +366,47 @@ $('recCsv').onclick=()=>{
   const csv=[cols.join(',')].concat(recRows.map(r=>cols.map(c=>q(r[c])).join(','))).join('\r\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download='records.csv'; a.click();
+};
+
+// ============================ Replace a board ================================
+let _apList=null, _rpSel=null;
+function rpParse(s){ const p=s.split('|'); return {ssid:p[0]||'', bssid:p[1]||'', ch:+p[2]||0, rssi:+p[3]||0}; }
+$('rpScan').onclick=async()=>{
+  if(!rxCh){ $('rpMsg').textContent='not connected'; return; }
+  $('rpScan').disabled=true; $('rpMsg').textContent='scanning nearby boards…'; $('rpList').innerHTML=''; $('rpSel').hidden=true; _rpSel=null;
+  _apList=[];
+  try {
+    const done=waitFor('apscan:done', 15000); await send('__APSCAN__'); await done;
+    const aps=_apList.map(rpParse).sort((a,b)=>b.rssi-a.rssi); _apList=null;
+    if(!aps.length){ $('rpMsg').textContent='no open boards found — is the old board on?'; }
+    else { $('rpMsg').textContent=aps.length+' open network(s) — pick the old board'; renderBoards(aps); }
+  } catch(e){ _apList=null; $('rpMsg').textContent='scan failed: '+e.message; }
+  finally { $('rpScan').disabled=false; }
+};
+function renderBoards(aps){
+  const box=$('rpList'); box.innerHTML='';
+  for(const ap of aps){
+    const b=document.createElement('button'); b.className='sec'; b.style.cssText='width:100%;text-align:left;margin-bottom:6px';
+    b.innerHTML='<b>'+esc(ap.ssid||'(hidden)')+'</b><br><span class="sub">'+ap.bssid+' · ch'+ap.ch+' · '+ap.rssi+' dBm</span>';
+    b.onclick=()=>selectBoard(ap); box.appendChild(b);
+  }
+}
+function selectBoard(ap){
+  _rpSel=ap;
+  $('rpSelName').textContent=ap.ssid||'(hidden)';
+  $('rpSelMeta').textContent='('+ap.bssid+' · ch'+ap.ch+')';
+  $('rpOff').checked=false; $('rpAdopt').disabled=true; $('rpSel').hidden=false;
+}
+$('rpOff').onchange=()=>{ $('rpAdopt').disabled=!$('rpOff').checked; };
+$('rpAdopt').onclick=async()=>{
+  if(!_rpSel || !$('rpOff').checked) return;
+  $('rpAdopt').disabled=true; $('rpMsg').textContent='adopting — board will reboot as '+esc(_rpSel.ssid)+'…';
+  try {
+    const p=waitFor('adopt:', 5000); await send('__ADOPT__:'+_rpSel.ssid+'|'+_rpSel.bssid+'|'+_rpSel.ch);
+    const r=await p.catch(()=>'adopt:ok');   // the board reboots right after adopt:ok, so a dropped reply is fine
+    $('rpMsg').textContent = r.startsWith('adopt:err') ? 'adopt failed — check the values' :
+      '✓ adopted. The board is rebooting as “'+esc(_rpSel.ssid)+'”; its clients will re-join it. Reconnect over BLE once it is back.';
+  } catch(e){ $('rpMsg').textContent='✓ sent — board rebooting; reconnect over BLE once it is back.'; }
 };
 
 // ---- version badge vs GitHub latest ----

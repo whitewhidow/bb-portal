@@ -9,6 +9,7 @@
 #include "display.h"
 #include "version.h"
 #include <Arduino.h>
+#include <WiFi.h>          // scan nearby APs for the "Replace a board" adopt flow
 #include "mbedtls/base64.h"
 
 #define RAW_CHUNK 120     // raw bytes per doc chunk (base64 -> ~160 chars, fits BLE + the 320B RX buffer)
@@ -109,6 +110,33 @@ bool appHandleCommand(const char* cmd) {
     captiveRecordClear();
     bleNotify("recn:0");
     showStatus();
+    return true;
+  }
+  // "Replace a board": scan nearby 2.4GHz open APs so the portal can list them.
+  if (!strcmp(cmd, "__APSCAN__")) {
+    WiFi.mode(WIFI_AP_STA);                          // need STA to scan; AP stays up (clients blip during the ~2s scan)
+    int n = WiFi.scanNetworks();
+    for (int i = 0; i < n; i++) {
+      if (WiFi.encryptionType(i) != WIFI_AUTH_OPEN) continue;   // open networks only
+      if (WiFi.channel(i) > 13) continue;            // 2.4GHz only (the C5 also scans 5GHz — irrelevant for the captive AP)
+      String line = "apscan:" + WiFi.SSID(i) + "|" + WiFi.BSSIDstr(i) + "|" + WiFi.channel(i) + "|" + WiFi.RSSI(i);
+      bleNotify(line.c_str()); delay(45);            // space out notifies — no flush, so back-to-back would clobber
+    }
+    WiFi.scanDelete();
+    WiFi.mode(WIFI_AP);                              // back to AP-only
+    bleNotify("apscan:done");
+    return true;
+  }
+  // Adopt the old board's identity: "__ADOPT__:<ssid>|<bssid>|<channel>" (parse from the tail so an SSID may contain '|').
+  if (!strncmp(cmd, "__ADOPT__:", 10)) {
+    String a = cmd + 10;
+    int pc = a.lastIndexOf('|');
+    int pb = (pc > 0) ? a.lastIndexOf('|', pc - 1) : -1;
+    if (pb < 0) { bleNotify("adopt:err"); return true; }
+    String s = a.substring(0, pb), bssid = a.substring(pb + 1, pc), ch = a.substring(pc + 1);
+    cfgSet("ssid", s.c_str()); cfgSet("apmac", bssid.c_str()); cfgSet("channel", ch.c_str());
+    bleNotify("adopt:ok");
+    delay(400); ESP.restart();                       // reboot -> captiveBegin applies the cloned SSID/channel/MAC cleanly
     return true;
   }
   return false;
