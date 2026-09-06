@@ -63,6 +63,11 @@
     </div>
     <textarea id="docTxt" placeholder="Load a page to edit its HTML…" spellcheck="false"></textarea>
     <div class="row"><button id="docSave" style="flex:1">Save to board</button><button id="docReset" class="sec">Reset to default</button></div>
+    <div class="row" style="margin-top:8px">
+      <button id="pagesExport" class="sec" style="flex:1">Backup both pages ⤓</button>
+      <label class="sec" style="flex:1;text-align:center;padding:11px;border-radius:10px;border:1px solid var(--border);cursor:pointer">Restore ⤒<input id="pagesImport" type="file" accept="application/json,.json" hidden></label>
+    </div>
+    <div class="sub" style="margin-top:2px">Backup / restore both HTML pages (terms + thank-you) as one JSON file — separate from the config backup.</div>
     <div id="docMsg" class="sub"></div>
   </section>
 
@@ -183,6 +188,20 @@ function onNotify(e){
 function setRecCount(n){ $('hRecs').textContent=n+' records'; $('recCount').textContent=n+' records'; }
 
 // ================= HTML editor (chunked doc transfer over BLE) =================
+// Raw doc get/set (used by the editor AND by settings export/import).
+async function fetchDoc(doc){
+  let off=0,total=1,buf=[];
+  while(off<total){ const line=await reqRetry('__HGET__:'+doc+':'+off,'hget:'); const m=line.match(/^hget:(\d+):(\d+):(.*)$/); if(!m) break;
+    const nextoff=+m[1]; total=+m[2]; if(m[3]){ const bin=atob(m[3]); for(let i=0;i<bin.length;i++) buf.push(bin.charCodeAt(i)); }
+    if(nextoff<=off) break; off=nextoff; }
+  return new TextDecoder('utf-8').decode(new Uint8Array(buf));
+}
+async function pushDoc(doc,text){
+  const bytes=new TextEncoder().encode(text);
+  const r=await req('__HPUT__:'+doc,'hput:'); if(r!=='hput:ready') throw new Error('board not ready ('+doc+')');
+  for(let i=0;i<bytes.length;i+=120){ const chunk=bytes.slice(i,i+120); let bin=''; chunk.forEach(b=>bin+=String.fromCharCode(b)); await req('__HADD__:'+btoa(bin),'hack:'); }
+  await req('__HEND__','hdone:');
+}
 async function docLoad(){
   const doc=$('docSel').value; $('docMsg').textContent='loading…'; $('docTxt').value='';
   try {
@@ -233,6 +252,28 @@ async function docReset(){
 $('docLoad').onclick=docLoad;
 $('docSave').onclick=docSave;
 $('docReset').onclick=docReset;
+$('pagesExport').onclick=async()=>{
+  $('docMsg').textContent='backing up pages…';
+  try {
+    const pages={};
+    for (const d of ['portal','done']){ $('docMsg').textContent='reading '+d+'…'; pages[d]=await fetchDoc(d); }
+    const blob={app:'bb-portal-pages',ver:curVer,pages};
+    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(blob,null,2)],{type:'application/json'}));
+    a.download='bb-portal-pages.json'; a.click(); URL.revokeObjectURL(a.href);
+    $('docMsg').textContent='backed up \u2713 (bb-portal-pages.json)';
+  } catch(e){ $('docMsg').textContent='backup failed: '+e.message; }
+};
+$('pagesImport').onchange=async(e)=>{
+  const file=e.target.files[0]; e.target.value=''; if(!file) return;
+  if(!confirm('Restore both pages from '+file.name+'? This overwrites the pages on the board.')) return;
+  $('docMsg').textContent='restoring pages…';
+  try {
+    const blob=JSON.parse(await file.text()); const pages=blob.pages||{};
+    for (const d of ['portal','done']){ if(typeof pages[d]==='string'){ $('docMsg').textContent='restoring '+d+'…'; await pushDoc(d,pages[d]); } }
+    await docLoad();
+    $('docMsg').textContent='restored \u2713';
+  } catch(e){ $('docMsg').textContent='restore failed: '+e.message; }
+};
 
 // ============================ Records ========================================
 async function loadRecords(){
