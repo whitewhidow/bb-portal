@@ -44,6 +44,7 @@
   <span id="hBatt" class="chip" hidden></span>
   <span id="hRssi" class="chip" hidden></span>
   <span id="hUp" class="chip" hidden></span>
+  <span id="hHeap" class="chip" hidden></span>
 </div>
 
 <div id="app" hidden>
@@ -168,6 +169,7 @@ for (const t of document.querySelectorAll('.tab')) t.onclick=()=>{
 
 function fmtUptime(s){ const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60);
   return d? d+'d '+h+'h' : h? h+'h '+m+'m' : m? m+'m' : s+'s'; }
+function fmtReset(c){ return {1:'power-on',2:'ext reset',3:'sw restart',4:'PANIC/crash',5:'int wdt',6:'task wdt',7:'wdt',8:'deep-sleep wake',9:'BROWNOUT',11:'usb',12:'jtag'}[c] || ('reset '+c); }
 
 // ---- incoming notifications ----
 function onNotify(e){
@@ -182,6 +184,12 @@ function onNotify(e){
       if(d){ $('hRssi').textContent='📶 '+d+' dBm'; $('hRssi').style.color = d>=-65?'var(--green)' : d>=-80?'#e5a94d' : '#e5484d'; $('hRssi').hidden=false; }
       else { $('hRssi').hidden=true; } }
     const u=v.match(/up=(\d+)/); if(u){ $('hUp').textContent='⏱ '+fmtUptime(+u[1]); $('hUp').hidden=false; }
+    const hp=v.match(/heap=(\d+)/), rs=v.match(/rst=(\d+)/);
+    if(hp){ const abn=rs&&[4,5,6,7,9].includes(+rs[1]);
+      $('hHeap').textContent='\uD83D\uDCBE '+Math.round(+hp[1]/1024)+' KB'+(abn?' \u26A0':'');
+      $('hHeap').title='free heap'+(rs?' \u00B7 last reset: '+fmtReset(+rs[1]):'');
+      $('hHeap').style.color=(+hp[1]<20000||abn)?'#e5a94d':'';
+      $('hHeap').hidden=false; }
     return; }
   if (v.startsWith('wifi:')) { const p=v.slice(5).split('|'); wifiConfigured=(p[0]&&p[0]!=='-'); $('wifiStat').textContent = 'wifi: ' + p.slice(0,2).join(' — '); return; }
   if (v.startsWith('ota:'))  { $('otaStat').textContent = v.slice(4); return; }
