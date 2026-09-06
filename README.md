@@ -1,37 +1,21 @@
 # bb-portal — Wi-Fi Terms & Access-Code Portal
 
-A **captive portal** for building/guest Wi-Fi on ESP32: it serves an editable
-**terms/sign-up page**, records every submission, and hands the visitor an **access
-code** on a thank-you page. The portal HTML (both pages) is **edited over BLE** from a
-Web-Bluetooth page, `{{CODE}}` + four generic `{{VALUE1}}`–`{{VALUE4}}` slots are injected
-from config, and submissions are stored on-board (downloadable as CSV). Runs on one
-codebase across S3 **and** C5 boards — the C5 captive portal is verified working on hardware
-(T-Display C5 + Waveshare C5-LCD), so the old "S3-only" caveat no longer applies.
+A **captive portal** for building or guest Wi-Fi on an ESP32. Visitors join the
+board's open Wi-Fi, land on a **terms / sign-up page** you control, and — once they
+sign — get an **access code** on a thank-you page. Staff edit both pages and the
+branding from a phone over Bluetooth (no app to install); every sign-up is saved on
+the board and exportable as a **CSV**.
 
-Built on the [esp32-board-app-template](https://github.com/whitewhidow/esp32-board-app-template)
-boilerplate (BLE control + WiFi OTA + multi-board HAL), so the infra notes below carry over.
+Runs on one codebase across S3 **and** C5 boards — the C5 captive portal is verified
+working on hardware (T-Display C5 + Waveshare C5-LCD), so the old "S3-only" caveat no
+longer applies. Built on the
+[esp32-board-app-template](https://github.com/whitewhidow/esp32-board-app-template)
+boilerplate (BLE control + Wi-Fi OTA + multi-board HAL).
 
-## What you get
-
-- **Multi-board HAL** (`board.h`) — display pins/panel, button, name per board, selected
-  by a build flag. Boards included: T-Embed CC1101, T-Dongle S3, Cardputer ADV (StampS3),
-  T-Display C5, Waveshare C5-LCD, and a **generic headless S3**.
-- **Display** (`display.cpp`) — LovyanGFX with a **null path** for headless boards
-  (a missing panel would otherwise hang init). Splash + centered text + status bar.
-- **BLE control service** (`ble_control.cpp`) — the phone portal writes `__CMD__`s, the
-  board notifies replies. Built-in: version, WiFi provisioning, self-update, status,
-  config. Your commands via `appHandleCommand()`.
-- **WiFi OTA** (`netota.cpp`) — reboot-to-fetch self-update into an A/B slot (works even
-  on headless / single-button boards).
-- **Config** (`config.cpp`) — NVS settings; declare fields once, the portal auto-renders
-  the form. Includes the **boot-splash on/off** toggle.
-- **Portal** (`portal/index.html`) — Web-Bluetooth control page (status header with a
-  version pill checked against the latest GitHub release, WiFi/Update/Config tabs).
-- **Web flasher** (`flasher/`) — ESP Web Tools browser USB flash of the **merged** image.
-- **CI** (`.github/workflows/release.yml`) — on a tag, builds every board, publishes
-  app-only + merged bins, and auto-updates the flasher.
-- **[GOTCHAS.md](GOTCHAS.md)** — the expensive lessons (MAC/GATT cache, notify race,
-  StampS3 board setting, buttonless flashing, app-only vs merged bins, …).
+> **Handling people's data:** sign-ups (including anything visitors type) are stored in
+> cleartext CSV on the board and exportable over BLE. You are responsible for obtaining
+> consent and for retention under your local law (e.g. GDPR). Don't collect more than you
+> need, and clear the records when you're done.
 
 ## Boards
 
@@ -46,17 +30,20 @@ boilerplate (BLE control + WiFi OTA + multi-board HAL), so the infra notes below
 
 ## Deploy it
 
-1. **Flash a board** — the [web flasher](https://whitewhidow.github.io/bb-portal/flasher/), or
-   `pio run -e <board> -t upload` (`tembed-cc1101`, `tdongle-s3`, `cardputer`, `tdisplay-c5`,
-   `waveshare-c5`, `s3-headless`). All work; the C5s are verified.
+1. **Flash a board** — the [web flasher](https://whitewhidow.github.io/bb-portal/flasher/) (browser
+   USB, no toolchain), or `pio run -e <board> -t upload` (`tembed-cc1101`, `tdongle-s3`, `cardputer`,
+   `tdisplay-c5`, `waveshare-c5`, `s3-headless`). All work; the C5s are verified.
 2. **Open the BLE console** — [whitewhidow.github.io/bb-portal/portal/](https://whitewhidow.github.io/bb-portal/portal/)
-   (Chrome/Edge), connect to **Terms Portal**:
-   - **Config** — building SSID, the access **code** (`{{CODE}}`), the 4 generic slots
-     (`{{VALUE1}}`–`{{VALUE4}}`), brightness, **Screen off after (s)**, and **LED flash** (on
-     LED boards).
-   - **Editor** — customise the terms/form page + the thank-you/code page HTML (Reset-to-default
-     restores the starter). Placeholders are injected on every page load.
+   (Chrome/Edge), connect to **Terms Portal** (it opens on the **Records** tab):
    - **Records** — view, CSV-export, or clear submissions.
+   - **Editor** — customise the terms/form page + the thank-you/code page HTML (Reset-to-default
+     restores the starter), or **Backup both pages / Restore** them as `bb-portal-pages.json`.
+     Placeholders are injected on every page load.
+   - **Config** — building SSID, the access **code** (`{{CODE}}`), the 4 generic slots
+     (`{{VALUE1}}`–`{{VALUE4}}`), brightness, **Screen off after (s)**, **LED flash** (on LED
+     boards), and **Export all / Import** of the whole board config as a JSON file (with an option
+     to leave the Wi-Fi password out).
+   - **WiFi / Update** — Wi-Fi creds for OTA, and self-update / firmware switch.
 3. **Residents** join the board's open SoftAP → the captive portal shows the terms page → they
    sign → get the access code.
 4. **Updates** — WiFi tab (creds for OTA) → Update. Boards with A/B slots can also **switch**
@@ -65,5 +52,36 @@ boilerplate (BLE control + WiFi OTA + multi-board HAL), so the infra notes below
    the **T-Display C5** hops to BBoink only (the PoC has no C5 build). The 4 MB Waveshare C5 is
    single-app and stays on bb-portal.
 
-Built on the boilerplate, so `app.cpp` / `config.cpp` extend it the same way; see the
-[template](https://github.com/whitewhidow/esp32-board-app-template) for that workflow.
+## Under the hood
+
+Built on the [boilerplate](https://github.com/whitewhidow/esp32-board-app-template), so the infra
+below is shared and `app.cpp` / `config.cpp` extend it the same way.
+
+- **Multi-board HAL** (`board.h`) — display pins/panel, button, name per board, selected
+  by a build flag. Boards included: T-Embed CC1101, T-Dongle S3, Cardputer ADV (StampS3),
+  T-Display C5, Waveshare C5-LCD, and a **generic headless S3**.
+- **Display** (`display.cpp`) — LovyanGFX with a **null path** for headless boards
+  (a missing panel would otherwise hang init). Splash + centered text + status bar.
+- **BLE control service** (`ble_control.cpp`) — the phone portal writes `__CMD__`s, the
+  board notifies replies. Built-in: version, WiFi provisioning, self-update, status,
+  config (served in MTU-safe chunks so it doesn't silently drop on the C5). Your commands
+  via `appHandleCommand()`.
+- **WiFi OTA** (`netota.cpp`) — reboot-to-fetch self-update into an A/B slot (works even
+  on headless / single-button boards).
+- **Config** (`config.cpp`) — NVS settings; declare fields once, the portal auto-renders
+  the form. Includes the **boot-splash on/off** toggle.
+- **Portal** (`portal/index.html`) — Web-Bluetooth control page: a status header with a
+  version pill (checked against the latest GitHub release) plus live board badges
+  (uptime, BLE RSSI, battery %), and **Records / Editor / Config / WiFi / Update**
+  tabs (opens on Records). Writes are serialized through a send-queue so overlapping BLE
+  ops don't collide.
+- **Web flasher** (`flasher/`) — ESP Web Tools browser USB flash of the **merged** image.
+- **CI** (`.github/workflows/release.yml`) — on a tag, builds every board, publishes
+  app-only + merged bins, and auto-updates the flasher.
+- **[GOTCHAS.md](GOTCHAS.md)** — the expensive lessons (MAC/GATT cache, notify race,
+  StampS3 board setting, buttonless flashing, app-only vs merged bins, …).
+
+## Getting help
+
+Questions or a bug? **Open a GitHub issue** — <https://github.com/whitewhidow/bb-portal/issues>.
+Include your board, firmware version (the pill in the portal header), and what you tried.
