@@ -1,6 +1,7 @@
 // Firmware-switch targets: the OTHER apps' latest-release app-bin for THIS board.
-// Board-aware — only the S3 16MB boards (T-Embed, T-Dongle) are in the switch mesh
-// (identical A/B partition table + PoC has no C5 build). Empty elsewhere -> the portal
+// Board-aware switch mesh: T-Embed, T-Dongle and Cardputer are 3-way (BBoink + PoC),
+// the T-Display C5 is 2-way (BBoink only — PoC has no C5 build). All share byte-compatible
+// A/B partition tables. The 4MB Waveshare C5 is single-app, so it's off the mesh: the portal
 // shows no switch options and __SWITCH__ is a clean no-op. See netota.cpp / ble_control.cpp.
 #pragma once
 

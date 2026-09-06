@@ -59,8 +59,11 @@ boilerplate (BLE control + WiFi OTA + multi-board HAL), so the infra notes below
    - **Records** — view, CSV-export, or clear submissions.
 3. **Residents** join the board's open SoftAP → the captive portal shows the terms page → they
    sign → get the access code.
-4. **Updates** — WiFi tab (creds for OTA) → Update. The 16 MB A/B boards (incl. the T-Display C5)
-   can also **switch** to the sibling BBoink firmware.
+4. **Updates** — WiFi tab (creds for OTA) → Update. Boards with A/B slots can also **switch**
+   to a sibling firmware over OTA: **T-Embed CC1101 / T-Dongle S3 / Cardputer ADV** hop to
+   [BBoink](https://github.com/whitewhidow/bboink) *and* [hid-ble-poc](https://github.com/whitewhidow/hid-ble-poc);
+   the **T-Display C5** hops to BBoink only (the PoC has no C5 build). The 4 MB Waveshare C5 is
+   single-app and stays on bb-portal.
 
 Built on the boilerplate, so `app.cpp` / `config.cpp` extend it the same way; see the
 [template](https://github.com/whitewhidow/esp32-board-app-template) for that workflow.
