@@ -88,7 +88,8 @@
       <button id="cfgExport" class="sec" style="flex:1">Export all ⤓</button>
       <label class="sec" style="flex:1;text-align:center;padding:11px;border-radius:10px;border:1px solid var(--border);cursor:pointer">Import ⤒<input id="cfgImport" type="file" accept="application/json,.json" hidden></label>
     </div>
-    <div class="sub" style="margin-top:2px">Backup / restore all settings + WiFi as a JSON file — handy for provisioning several boards the same way.</div>
+    <label class="sub" style="margin-top:2px;display:block;cursor:pointer"><input type="checkbox" id="cfgNoPass"> exclude the WiFi password from the export</label>
+    <div class="sub" style="margin-top:2px">Backup / restore all settings + WiFi as a JSON file — handy for provisioning several boards the same way. ⚠ The file stores the WiFi password in plain text unless you tick the box above.</div>
     <div id="cfgMsg" class="sub" style="margin-top:6px"></div>
   </section>
 
@@ -373,6 +374,7 @@ $('cfgExport').onclick=async()=>{
     const cfg={}; for (const f of cfgFields) cfg[f.k]=f.v??'';
     let wifi={ssid:'',pass:''};
     try { const w=await reqRetry('__WIFIGET__','wifiget:'); const p=w.slice(8).split('|'); wifi={ssid:p[0]||'',pass:p.slice(1).join('|')||''}; } catch(e){}
+    if ($('cfgNoPass').checked) wifi.pass='';             // leave the passphrase out of the file
     const blob={app:'bb-portal',ver:curVer,config:cfg,wifi};
     const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(blob,null,2)],{type:'application/json'}));
     a.download='bb-portal-config.json'; a.click(); URL.revokeObjectURL(a.href);
@@ -384,14 +386,16 @@ $('cfgImport').onchange=async(e)=>{
   if(!confirm('Import settings from '+file.name+'? This overwrites the board’s config + WiFi.')) return;
   $('cfgMsg').textContent='importing…';
   try {
-    const blob=JSON.parse(await file.text()); const cfg=blob.config||{};
+    const blob=JSON.parse(await file.text());
+    if (blob.app && blob.app!=='bb-portal' && !confirm('This file was exported from “'+blob.app+'”, not bb-portal. Importing may set fields this board doesn’t use. Continue?')) { $('cfgMsg').textContent='import cancelled'; return; }
+    const cfg=blob.config||{};
     let ssidChanged=false;
     for (const [k,v] of Object.entries(cfg)){ if(k==='ssid'&&String(v)!==(cfgFields.find(f=>f.k==='ssid')?.v||'')) ssidChanged=true;
       await send('__CFGSET__:'+k+'='+v); await new Promise(r=>setTimeout(r,120)); }
     if (blob.wifi&&blob.wifi.ssid) await send('__WIFI__:'+blob.wifi.ssid+'|'+(blob.wifi.pass||''));
     if (ssidChanged) await send('__APREST__');           // re-advertise the SoftAP under the new name
     await loadConfig();
-    $('cfgMsg').textContent='imported ✓';
+    $('cfgMsg').textContent='imported ✓'+(blob.ver&&blob.ver!==curVer?(' (file was v'+blob.ver+', board is v'+curVer+')'):'');
   } catch(e){ $('cfgMsg').textContent='import failed: '+e.message; }
 };
 
