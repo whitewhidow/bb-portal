@@ -73,7 +73,7 @@
   #define PANEL_FREQ 40000000
   #define APP_BTN  0
   #define APP_BATT_ADC 10          // Cardputer battery voltage on GPIO10 (M5's BAT_ADC)...
-  #define APP_BATT_DIV 2.0f        // ...through a 1:1 divider (x2). Verify % on-device.
+  #define APP_BATT_DIV 2.0f        // ...through a 1:1 divider (x2). VERIFIED on hardware.
   #define APP_LED_PIN 21             // WS2812 x1 — UNVERIFIED on the ADV
   #define APP_LED_COUNT 1
 
