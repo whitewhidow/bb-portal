@@ -74,7 +74,7 @@
   #define APP_BTN  0
   #define APP_BATT_ADC 10          // Cardputer battery voltage on GPIO10 (M5's BAT_ADC)...
   #define APP_BATT_DIV 2.0f        // ...through a 1:1 divider (x2). VERIFIED on hardware.
-  #define APP_LED_PIN 21             // WS2812 x1 — UNVERIFIED on the ADV
+  #define APP_LED_PIN 21             // WS2812 x1 — VERIFIED on hardware (green, no R/G swap)
   #define APP_LED_COUNT 1
 
 // ==== ESP32-C5 boards — ST7789 over SPI2, same LovyanGFX path as the S3 boards ======
