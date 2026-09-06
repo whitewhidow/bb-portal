@@ -10,11 +10,17 @@ int batteryPct() {
   #ifndef APP_BATT_DIV
   #  define APP_BATT_DIV 2.0f
   #endif
-  // battery mV = pin mV * divider ratio. Map a Li-ion window (3.30V empty..4.20V full)
-  // to 0..100. Adjust the window / add smoothing for your board if needed.
-  int mv  = (int)(analogReadMilliVolts(APP_BATT_ADC) * (APP_BATT_DIV));
+  // The ADC is noisy: cache the result ~8s and average a few samples, so the % doesn't
+  // jitter across buckets (which would spam the st: status notify every loop). battery
+  // mV = pin mV * divider ratio, mapped over a Li-ion window (3.30V empty..4.20V full).
+  static int cached = -1; static uint32_t last = 0;
+  if (cached >= 0 && millis() - last < 8000) return cached;
+  last = millis();
+  long acc = 0; for (int i = 0; i < 8; i++) acc += analogReadMilliVolts(APP_BATT_ADC);
+  int mv  = (int)((acc / 8) * (APP_BATT_DIV));
   int pct = (mv - 3300) * 100 / (4200 - 3300);
-  return pct < 0 ? 0 : pct > 100 ? 100 : pct;
+  cached = pct < 0 ? 0 : pct > 100 ? 100 : pct;
+  return cached;
 #else
   return 100;   // no battery on this board
 #endif
