@@ -35,14 +35,17 @@ boilerplate (BLE control + Wi-Fi OTA + multi-board HAL).
    `tdisplay-c5`, `waveshare-c5`, `s3-headless`). All work; the C5s are verified.
 2. **Open the BLE console** — [whitewhidow.github.io/bb-portal/portal/](https://whitewhidow.github.io/bb-portal/portal/)
    (Chrome/Edge), connect to **Terms Portal** (it opens on the **Records** tab):
-   - **Records** — view, CSV-export, or clear submissions.
+   - **Records** — view, CSV-export, or clear submissions. Each is timestamped with real local
+     time (the portal sets the board's clock over BLE on connect); old records auto-rotate so a
+     full flash can't stop sign-ups.
    - **Editor** — customise the terms/form page + the thank-you/code page HTML (Reset-to-default
      restores the starter), or **Backup both pages / Restore** them as `bb-portal-pages.json`.
      Placeholders are injected on every page load.
    - **Config** — building SSID, the access **code** (`{{CODE}}`), the 4 generic slots
      (`{{VALUE1}}`–`{{VALUE4}}`), brightness, **Screen off after (s)**, **LED flash** (on LED
-     boards), and **Export all / Import** of the whole board config as a JSON file (with an option
-     to leave the Wi-Fi password out).
+     boards), **Export all / Import** of the whole board config as a JSON file (with an option to
+     leave the Wi-Fi password out), and named **config profiles** (saved in the browser, each
+     snapshotting the config + both pages) for switching between setups.
    - **WiFi / Update** — Wi-Fi creds for OTA, and self-update / firmware switch.
 3. **Residents** join the board's open SoftAP → the captive portal shows the terms page → they
    sign → get the access code.
@@ -72,7 +75,8 @@ below is shared and `app.cpp` / `config.cpp` extend it the same way.
   the form. Includes the **boot-splash on/off** toggle.
 - **Portal** (`portal/index.html`) — Web-Bluetooth control page: a status header with a
   version pill (checked against the latest GitHub release) plus live board badges
-  (uptime, BLE RSSI, battery %), and **Records / Editor / Config / WiFi / Update**
+  (uptime, BLE RSSI, battery %, free heap, free flash, and Wi-Fi client count), and
+  **Records / Editor / Config / WiFi / Update**
   tabs (opens on Records). Writes are serialized through a send-queue so overlapping BLE
   ops don't collide.
 - **Web flasher** (`flasher/`) — ESP Web Tools browser USB flash of the **merged** image.
