@@ -43,6 +43,7 @@
   <span id="hRecs" class="chip">0 records</span>
   <span id="hBatt" class="chip" hidden></span>
   <span id="hRssi" class="chip" hidden></span>
+  <span id="hUp" class="chip" hidden></span>
 </div>
 
 <div id="app" hidden>
@@ -78,6 +79,11 @@
     <div class="sub">Stored on the board (NVS). SSID needs a reboot to re-advertise; the access code applies immediately.</div>
     <div id="cfgForm"></div>
     <button id="cfgSave" style="width:100%;margin-top:10px">Save config</button>
+    <div class="row" style="margin-top:8px">
+      <button id="cfgExport" class="sec" style="flex:1">Export all ⤓</button>
+      <label class="sec" style="flex:1;text-align:center;padding:11px;border-radius:10px;border:1px solid var(--border);cursor:pointer">Import ⤒<input id="cfgImport" type="file" accept="application/json,.json" hidden></label>
+    </div>
+    <div class="sub" style="margin-top:2px">Backup / restore all settings + WiFi as a JSON file — handy for provisioning several boards the same way.</div>
     <div id="cfgMsg" class="sub" style="margin-top:6px"></div>
   </section>
 
@@ -154,6 +160,9 @@ for (const t of document.querySelectorAll('.tab')) t.onclick=()=>{
   if (t.dataset.tab==='records') loadRecords();
 };
 
+function fmtUptime(s){ const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60);
+  return d? d+'d '+h+'h' : h? h+'h '+m+'m' : m? m+'m' : s+'s'; }
+
 // ---- incoming notifications ----
 function onNotify(e){
   const v = new TextDecoder().decode(e.target.value);
@@ -166,6 +175,7 @@ function onNotify(e){
     const r=v.match(/rssi=(-?\d+)/); if(r){ const d=+r[1];
       if(d){ $('hRssi').textContent='📶 '+d+' dBm'; $('hRssi').style.color = d>=-65?'var(--green)' : d>=-80?'#e5a94d' : '#e5484d'; $('hRssi').hidden=false; }
       else { $('hRssi').hidden=true; } }
+    const u=v.match(/up=(\d+)/); if(u){ $('hUp').textContent='⏱ '+fmtUptime(+u[1]); $('hUp').hidden=false; }
     return; }
   if (v.startsWith('wifi:')) { const p=v.slice(5).split('|'); wifiConfigured=(p[0]&&p[0]!=='-'); $('wifiStat').textContent = 'wifi: ' + p.slice(0,2).join(' — '); return; }
   if (v.startsWith('ota:'))  { $('otaStat').textContent = v.slice(4); return; }
@@ -312,6 +322,36 @@ $('cfgSave').onclick=async()=>{
   if (ssidChanged){ $('cfgMsg').textContent='saved ✓ — applying new WiFi name…'; await req('__APREST__','ap:'); }
   $('cfgMsg').textContent='saved ✓'+(ssidChanged?' — WiFi name is now live':'');
   loadConfig();   // refresh stored values so a further edit compares correctly
+};
+
+// ---- backup / restore all settings + WiFi ----
+$('cfgExport').onclick=async()=>{
+  $('cfgMsg').textContent='exporting…';
+  try {
+    await loadConfig();                                  // fresh stored values into cfgFields
+    const cfg={}; for (const f of cfgFields) cfg[f.k]=f.v??'';
+    let wifi={ssid:'',pass:''};
+    try { const w=await reqRetry('__WIFIGET__','wifiget:'); const p=w.slice(8).split('|'); wifi={ssid:p[0]||'',pass:p.slice(1).join('|')||''}; } catch(e){}
+    const blob={app:'bb-portal',ver:curVer,config:cfg,wifi};
+    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(blob,null,2)],{type:'application/json'}));
+    a.download='bb-portal-config.json'; a.click(); URL.revokeObjectURL(a.href);
+    $('cfgMsg').textContent='exported ✓ (bb-portal-config.json)';
+  } catch(e){ $('cfgMsg').textContent='export failed: '+e.message; }
+};
+$('cfgImport').onchange=async(e)=>{
+  const file=e.target.files[0]; e.target.value=''; if(!file) return;
+  if(!confirm('Import settings from '+file.name+'? This overwrites the board’s config + WiFi.')) return;
+  $('cfgMsg').textContent='importing…';
+  try {
+    const blob=JSON.parse(await file.text()); const cfg=blob.config||{};
+    let ssidChanged=false;
+    for (const [k,v] of Object.entries(cfg)){ if(k==='ssid'&&String(v)!==(cfgFields.find(f=>f.k==='ssid')?.v||'')) ssidChanged=true;
+      await send('__CFGSET__:'+k+'='+v); await new Promise(r=>setTimeout(r,120)); }
+    if (blob.wifi&&blob.wifi.ssid) await send('__WIFI__:'+blob.wifi.ssid+'|'+(blob.wifi.pass||''));
+    if (ssidChanged) await send('__APREST__');           // re-advertise the SoftAP under the new name
+    await loadConfig();
+    $('cfgMsg').textContent='imported ✓';
+  } catch(e){ $('cfgMsg').textContent='import failed: '+e.message; }
 };
 
 // ---- wifi / ota actions ----

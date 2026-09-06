@@ -41,6 +41,7 @@ void netClearCreds() {
   s_prefs.begin("app", false); s_prefs.remove("ssid"); s_prefs.remove("pass"); s_prefs.end();
   s_ssid = ""; s_pass = ""; WiFi.disconnect(true);
 }
+String netCreds() { return s_ssid + "|" + s_pass; }   // "<ssid>|<pass>" for settings backup/export
 bool netConnected() { return WiFi.status() == WL_CONNECTED; }
 bool netConfigured() { return s_ssid.length() > 0; }
 

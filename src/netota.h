@@ -12,6 +12,7 @@ void        netClearCreds();
 bool        netConnected();                               // live WiFi link (up only during OTA)
 bool        netConfigured();                               // creds saved (ready to self-update)
 String      netStatus();                                  // "wifi:<ssid>|<state>|<ip>|<ver>"
+String      netCreds();                                   // "<ssid>|<pass>" for settings backup/export
 const char* netVersion();
 
 void        netRequestOta();      // flag a self-update + reboot (call from a BLE command)
