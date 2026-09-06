@@ -5,7 +5,8 @@ A **captive portal** for building/guest Wi-Fi on ESP32: it serves an editable
 code** on a thank-you page. The portal HTML (both pages) is **edited over BLE** from a
 Web-Bluetooth page, `{{CODE}}` + four generic `{{VALUE1}}`–`{{VALUE4}}` slots are injected
 from config, and submissions are stored on-board (downloadable as CSV). Runs on one
-codebase across many boards (deploy on an S3 — the C5 SoftAP popup is unreliable).
+codebase across S3 **and** C5 boards — the C5 captive portal is verified working on hardware
+(T-Display C5 + Waveshare C5-LCD), so the old "S3-only" caveat no longer applies.
 
 Built on the [esp32-board-app-template](https://github.com/whitewhidow/esp32-board-app-template)
 boilerplate (BLE control + WiFi OTA + multi-board HAL), so the infra notes below carry over.
@@ -43,18 +44,23 @@ boilerplate (BLE control + WiFi OTA + multi-board HAL), so the infra notes below
 | `tdisplay-c5`  | LilyGo T-Display C5   | C5 | ST7789 320×170 | |
 | `waveshare-c5` | Waveshare C5-LCD-1.47 | C5 | ST7789 320×172 | |
 
-## Use it
+## Deploy it
 
-1. **Use this template** on GitHub → your repo. Then find-and-replace
-   `esp32-board-app-template` / `whitewhidow` in `version.h`, `release.yml`, the portal,
-   and the flasher with your repo/owner. Set Pages to serve from **`/` (root)**.
-2. **Name your app**: set `APP_NAME` in `version.h` (the BLE advertised name + on-screen
-   title). Each web page carries its own `const APP_NAME` at the top of its script
-   (`portal/`, `flasher/`, root `index.html`) that drives its title/heading — keep those in
-   sync with `version.h`.
-3. Build/flash: `pio run -e s3-headless -t upload` (add `-e <board>` for others).
-4. Write your app in **`app.cpp`** (`appSetup`/`appLoop` + `appHandleCommand`) and add
-   settings in **`config.cpp`** (`CFG_FIELDS`).
-5. Release: `git tag v0.1.0 && git push --tags` — CI publishes bins + the flasher.
+1. **Flash a board** — the [web flasher](https://whitewhidow.github.io/bb-portal/flasher/), or
+   `pio run -e <board> -t upload` (`tembed-cc1101`, `tdongle-s3`, `cardputer`, `tdisplay-c5`,
+   `waveshare-c5`, `s3-headless`). All work; the C5s are verified.
+2. **Open the BLE console** — [whitewhidow.github.io/bb-portal/portal/](https://whitewhidow.github.io/bb-portal/portal/)
+   (Chrome/Edge), connect to **Terms Portal**:
+   - **Config** — building SSID, the access **code** (`{{CODE}}`), the 4 generic slots
+     (`{{VALUE1}}`–`{{VALUE4}}`), brightness, **Screen off after (s)**, and **LED flash** (on
+     LED boards).
+   - **Editor** — customise the terms/form page + the thank-you/code page HTML (Reset-to-default
+     restores the starter). Placeholders are injected on every page load.
+   - **Records** — view, CSV-export, or clear submissions.
+3. **Residents** join the board's open SoftAP → the captive portal shows the terms page → they
+   sign → get the access code.
+4. **Updates** — WiFi tab (creds for OTA) → Update. The 16 MB A/B boards (incl. the T-Display C5)
+   can also **switch** to the sibling BBoink firmware.
 
-The demo app just echoes text from the portal onto the board's screen, to show the wiring.
+Built on the boilerplate, so `app.cpp` / `config.cpp` extend it the same way; see the
+[template](https://github.com/whitewhidow/esp32-board-app-template) for that workflow.
