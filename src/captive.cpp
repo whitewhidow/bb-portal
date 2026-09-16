@@ -31,6 +31,18 @@ static bool parseMac(const String& s, uint8_t out[6]) {
   int n = sscanf(s.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &out[0], &out[1], &out[2], &out[3], &out[4], &out[5]);
   return n == 6;
 }
+// Cap the SoftAP TX power from config. Blank/0 -> leave the stack default (its max, ~20dBm).
+// esp_wifi_set_max_tx_power() wants 0.25dBm units [8..84] = 2..21dBm; must run AFTER the AP is up.
+static void applyTxPower() {
+  int dbm = cfgGet("txpower", "").toInt();
+  if (dbm <= 0) return;                              // unset -> keep driver default (max)
+  if (dbm < 2)  dbm = 2;
+  if (dbm > 20) dbm = 20;
+  esp_err_t e = esp_wifi_set_max_tx_power((int8_t)(dbm * 4));
+  int8_t cur = 0; esp_wifi_get_max_tx_power(&cur);   // read back what the stack actually accepted
+  Serial.printf("[CP] TX power -> %ddBm (%s), now %.2fdBm\n", dbm, e == ESP_OK ? "ok" : esp_err_to_name(e), cur / 4.0);
+}
+
 // If a cloned AP MAC is configured, apply it to the SoftAP interface (must precede WiFi.softAP()).
 // Works on S3 and C5 alike. Blank config -> keep this board's own factory MAC.
 static void applyApMac() {
@@ -334,6 +346,7 @@ void captiveBegin() {
   applyApMac();                                     // clone an old board's AP MAC if configured (before softAP)
   WiFi.softAPConfig(AP_IP, AP_IP, AP_MASK);
   WiFi.softAP(ssid().c_str(), nullptr /*open*/, chan(), 0, MAX_CLIENTS);
+  applyTxPower();                                    // cap TX power if configured (after the AP is up)
   Serial.printf("[CP] SoftAP '%s' at %s ch%d mac %s\n", ssid().c_str(),
                 WiFi.softAPIP().toString().c_str(), chan(), WiFi.softAPmacAddress().c_str());
 
@@ -350,6 +363,7 @@ void captiveRestartAp() {
   applyApMac();                                     // best-effort live MAC clone (a full clone is most reliable via reboot; see __ADOPT__)
   WiFi.softAPConfig(AP_IP, AP_IP, AP_MASK);
   WiFi.softAP(ssid().c_str(), nullptr, chan(), 0, MAX_CLIENTS);
+  applyTxPower();                                    // re-apply the TX power cap after the AP restart
   Serial.printf("[CP] SoftAP re-applied: '%s' ch%d mac %s\n", ssid().c_str(), chan(), WiFi.softAPmacAddress().c_str());
 }
 
