@@ -20,6 +20,10 @@ void captiveBegin();     // start AP+DNS+HTTP, write default docs on first boot
 void captiveTick();      // call from loop(): service DNS
 void captiveRestartAp(); // re-apply the SSID from config live (no reboot needed)
 int  captiveChannel();   // live SoftAP channel (resolved from config, or auto-picked); 0 before AP is up
+int  captiveChannelScan();       // rescan now (antenna test); refreshes the stored list, returns the channel it'd pick
+int  captiveScanCount();         // APs stored from the last scan (boot or on-demand)
+String captiveScanLine(int i);   // "ssid|bssid|ch|rssi" for stored AP i
+String captiveScanSummary();     // "1=..|6=..|11=..|pick=N|n=N" (channel scores + AP count last seen)
 
 // ---- editable documents ("portal" | "done") and read-only "records" ----------
 size_t captiveDocSize(const String& doc);                              // bytes, 0 if missing

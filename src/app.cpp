@@ -133,6 +133,15 @@ bool appHandleCommand(const char* cmd) {
     bleNotify("apscan:done");
     return true;
   }
+  // Channel scan (antenna test): rescan and stream every AP found + the 1/6/11 congestion scores.
+  // Does not change the live AP channel — swap antennas, rescan, compare RSSI. Clients blip ~2s.
+  if (!strcmp(cmd, "__CHSCAN__")) {
+    captiveChannelScan();
+    int n = captiveScanCount();
+    for (int i = 0; i < n; i++) { bleNotify(("chscan:" + captiveScanLine(i)).c_str()); delay(45); }
+    bleNotify(("chscan:done|" + captiveScanSummary()).c_str());
+    return true;
+  }
   // Adopt the old board's identity: "__ADOPT__:<ssid>|<bssid>|<channel>" (parse from the tail so an SSID may contain '|').
   if (!strncmp(cmd, "__ADOPT__:", 10)) {
     String a = cmd + 10;

@@ -107,6 +107,12 @@
     </div>
     <div class="sub" style="margin-top:2px">Profiles are saved in this browser — each snapshots the config <b>and both HTML pages</b>, so you can switch between full setups in a tap. Export / Import moves the whole set between browsers.</div>
     <div id="cfgMsg" class="sub" style="margin-top:6px"></div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
+    <div class="row"><button id="chScan" class="sec" style="flex:1">Channel scan (antenna test)</button></div>
+    <div class="sub" style="margin-top:4px">Scans nearby WiFi and rates channels 1 / 6 / 11 by congestion. Doesn't change the live channel — swap an antenna, rescan, and compare the RSSI column. ⚠ Portal clients blip for ~2s during the scan.</div>
+    <div id="chScores" class="sub" style="margin-top:6px"></div>
+    <div id="chList" style="margin-top:6px"></div>
   </section>
 
   <section id="t-replace" hidden>
@@ -164,7 +170,7 @@ function log(m){ const e=$('log'); if(!e) return; e.textContent+=m+'\n';
 // Generic Board-feedback echo: user actions -> "→ cmd", board replies -> "← reply". Denylists keep
 // background polls, chunk streams and pure status/badge/scan-result lines out of the log.
 const QUIET_TX=['__STATUS__','__WIFIST__','__VER__','__TIME__','__CFGGET__','__HGET__','__HADD__','__RECN__','__APINFO__'];
-const QUIET_RX=['st:','ver:','wifi:','wifiget:','ota:','cfg:','recn:','apscan:','apinfo:','hget:','hput:','hack:','mac:'];
+const QUIET_RX=['st:','ver:','wifi:','wifiget:','ota:','cfg:','recn:','apscan:','chscan:','apinfo:','hget:','hput:','hack:','mac:'];
 function feedTx(s){ if(s && !QUIET_TX.some(q=>s.startsWith(q))) log('→ '+s); }
 function feedRx(v){ if(v && !QUIET_RX.some(q=>v.startsWith(q))) log('← '+v); }
 // Serialize GATT writes — Web Bluetooth allows only one op at a time, so overlapping
@@ -241,6 +247,7 @@ function onNotify(e){
       else $('hChan').hidden=true; }
     return; }
   if (v.startsWith('apscan:')) { if (v!=='apscan:done' && _apList) _apList.push(v.slice(7)); return; }   // 'apscan:done' resolves its waiter above
+  if (v.startsWith('chscan:')) { if (!v.startsWith('chscan:done') && _chScan) _chScan.push(v.slice(7)); return; }   // 'chscan:done|…' resolves its waiter above
   if (v.startsWith('wifi:')) { const p=v.slice(5).split('|'); wifiConfigured=(p[0]&&p[0]!=='-'); $('wifiStat').textContent = 'wifi: ' + p.slice(0,2).join(' — '); return; }
   if (v.startsWith('ota:'))  { $('otaStat').textContent = v.slice(4); return; }
 }
@@ -376,7 +383,7 @@ $('recCsv').onclick=()=>{
 };
 
 // ============================ Replace a board ================================
-let _apList=null, _rpSel=null, _selfMac='';
+let _apList=null, _rpSel=null, _selfMac='', _chScan=null;
 function rpParse(s){ const p=s.split('|'); return {ssid:p[0]||'', bssid:p[1]||'', ch:+p[2]||0, rssi:+p[3]||0}; }
 async function refreshSelf(){   // show THIS board's live AP identity (SSID/MAC/channel) to verify a clone took
   if(!rxCh) return;
@@ -399,6 +406,33 @@ $('rpScan').onclick=async()=>{
   } catch(e){ _apList=null; log('✖ scan failed: '+e.message); $('rpMsg').textContent='scan failed: '+e.message; }
   finally { $('rpScan').disabled=false; }
 };
+// ---- channel scan (antenna test) ----
+$('chScan').onclick=async()=>{
+  if(!rxCh){ $('chScores').textContent='not connected'; return; }
+  $('chScan').disabled=true; $('chScores').textContent='scanning…'; $('chList').innerHTML=''; _chScan=[];
+  try {
+    const done=waitFor('chscan:done', 20000); await send('__CHSCAN__'); const summary=await done;
+    const aps=_chScan.map(rpParse).sort((a,b)=>b.rssi-a.rssi); _chScan=null;
+    const m={}; summary.slice(12).split('|').forEach(kv=>{ const [k,val]=kv.split('='); m[k]=+val; });
+    const chip=(n)=>'<b>ch'+n+'</b> '+(m[n]??'?')+(n==m.pick?' ✓':'');
+    $('chScores').innerHTML='congestion (lower is better): '+chip(1)+' · '+chip(6)+' · '+chip(11)
+      +'<br><span class="sub">'+(m.n||0)+' APs seen'+(aps.length<(m.n||0)?' ('+aps.length+' shown)':'')+' · picks ch'+m.pick+' when channel is left blank</span>';
+    renderChList(aps);
+  } catch(e){ _chScan=null; $('chScores').textContent='scan failed: '+e.message; }
+  finally { $('chScan').disabled=false; }
+};
+function renderChList(aps){
+  const box=$('chList'); box.innerHTML='';
+  if(!aps.length){ box.innerHTML='<span class="sub">no networks found</span>'; return; }
+  for(const ap of aps){
+    const strong = ap.rssi>=-60, ok = ap.rssi>=-75;
+    const col = strong?'var(--green)':ok?'#e5a94d':'#e5484d';
+    const d=document.createElement('div'); d.style.cssText='display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)';
+    d.innerHTML='<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>'+esc(ap.ssid||'(hidden)')+'</b> <span class="sub">ch'+ap.ch+'</span></span>'
+      +'<span style="color:'+col+';font-variant-numeric:tabular-nums;white-space:nowrap">'+ap.rssi+' dBm</span>';
+    box.appendChild(d);
+  }
+}
 function renderBoards(aps){
   const box=$('rpList'); box.innerHTML='';
   for(const ap of aps){

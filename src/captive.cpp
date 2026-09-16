@@ -24,28 +24,57 @@ static AsyncWebServer server(80);
 static String ssid() { String s = cfgGet("ssid", "Building-WiFi"); return s.length() ? s : "Building-WiFi"; }
 static String code() { String s = cfgGet("code", "REPLACE-WITH-CODE"); return s.length() ? s : "REPLACE-WITH-CODE"; }
 
-// Auto-pick the least-congested of channels 1/6/11 (the only non-overlapping 2.4GHz channels).
-// One-shot at boot: needs STA to scan, so run it BEFORE softAP(). Scores each candidate by summing
-// every nearby AP's strength weighted by how much its channel bleeds into the candidate's ~22MHz band.
-static int autoPickChannel() {
+// Last channel-scan results, kept so the portal can display them (antenna comparison) and so a
+// restart reuses the pick without rescanning. Filled by runChannelScan() at boot and on __CHSCAN__.
+struct ScanAp { char ssid[33]; char bssid[18]; int8_t ch; int8_t rssi; };
+#define SCAN_MAX 40
+static ScanAp s_scan[SCAN_MAX];
+static int    s_scanN = 0;                           // APs stored (capped at SCAN_MAX)
+static int    s_scanSeen = 0;                         // APs the radio actually saw (may exceed SCAN_MAX)
+static long   s_scanScore[3] = { 0, 0, 0 };          // congestion score for 1 / 6 / 11
+static int    s_scanPick = 0;
+
+// Scan 2.4GHz, store every AP found (all of them — for antenna testing, not just candidates), and
+// score channels 1/6/11 by summing each AP's strength weighted by how much it bleeds into that band.
+// Needs STA, so callers run it before softAP() (boot) or restore AP mode after (on-demand).
+static int runChannelScan() {
   const int cands[3] = { 1, 6, 11 };
-  // overlap[d] = fraction of an AP d channels away that lands in a candidate's band (0 at >=5 apart).
+  // overlap[d] = fraction of an AP d channels away that lands in a candidate's ~22MHz band.
   static const float overlap[5] = { 1.0f, 0.8f, 0.6f, 0.4f, 0.2f };
-  long score[3] = { 0, 0, 0 };
+  s_scanScore[0] = s_scanScore[1] = s_scanScore[2] = 0; s_scanN = 0;
   WiFi.mode(WIFI_AP_STA);                            // STA needed to scan; AP (if up) blips briefly
-  int n = WiFi.scanNetworks(false, false);          // blocking, hide-none
+  int n = WiFi.scanNetworks(false, true);           // blocking, include hidden
+  s_scanSeen = n;
   for (int i = 0; i < n; i++) {
-    int ch = WiFi.channel(i); if (ch < 1 || ch > 13) continue;   // 2.4GHz only (C5 also lists 5GHz)
+    int ch = WiFi.channel(i);
     long w = WiFi.RSSI(i) + 100; if (w < 0) w = 0;  // strong neighbour hurts more (-45->55, -90->10)
-    for (int c = 0; c < 3; c++) { int d = abs(ch - cands[c]); if (d < 5) score[c] += (long)(w * overlap[d]); }
+    if (ch >= 1 && ch <= 13)                         // score 2.4GHz only (C5 also lists 5GHz)
+      for (int c = 0; c < 3; c++) { int d = abs(ch - cands[c]); if (d < 5) s_scanScore[c] += (long)(w * overlap[d]); }
+    if (s_scanN < SCAN_MAX) {                        // store everything (incl. 5GHz) for the antenna view
+      ScanAp& a = s_scan[s_scanN++];
+      String ss = WiFi.SSID(i); if (!ss.length()) ss = "(hidden)";
+      strlcpy(a.ssid, ss.c_str(), sizeof(a.ssid));
+      strlcpy(a.bssid, WiFi.BSSIDstr(i).c_str(), sizeof(a.bssid));
+      a.ch = (int8_t)ch; a.rssi = (int8_t)WiFi.RSSI(i);
+    }
   }
   WiFi.scanDelete();
   int best = 1;                                      // lowest score wins; tie-breaks toward 6 then lower ch
-  for (int c = 0; c < 3; c++) if (score[c] < score[best] || (score[c] == score[best] && cands[c] == 6)) best = c;
-  Serial.printf("[CP] auto-channel: 1=%ld 6=%ld 11=%ld -> picked %d (%d APs seen)\n",
-                score[0], score[1], score[2], cands[best], n);
-  return n > 0 ? cands[best] : WIFI_CHANNEL;         // saw nothing -> default 6
+  for (int c = 0; c < 3; c++) if (s_scanScore[c] < s_scanScore[best] || (s_scanScore[c] == s_scanScore[best] && cands[c] == 6)) best = c;
+  s_scanPick = n > 0 ? cands[best] : WIFI_CHANNEL;   // saw nothing -> default 6
+  Serial.printf("[CP] channel scan: 1=%ld 6=%ld 11=%ld -> pick %d (%d APs, %d stored)\n",
+                s_scanScore[0], s_scanScore[1], s_scanScore[2], s_scanPick, s_scanSeen, s_scanN);
+  return s_scanPick;
 }
+
+// On-demand rescan (portal "Channel scan" / antenna test): refresh the stored list without changing
+// the live AP channel, then restore AP-only. Returns the channel it *would* pick now.
+int captiveChannelScan() { int p = runChannelScan(); WiFi.mode(WIFI_AP); return p; }
+int    captiveScanCount()       { return s_scanN; }
+String captiveScanLine(int i)   { if (i < 0 || i >= s_scanN) return ""; const ScanAp& a = s_scan[i];
+  return String(a.ssid) + "|" + a.bssid + "|" + a.ch + "|" + a.rssi; }
+String captiveScanSummary()     { return String("1=") + s_scanScore[0] + "|6=" + s_scanScore[1] + "|11=" + s_scanScore[2]
+  + "|pick=" + s_scanPick + "|n=" + s_scanSeen; }
 
 // Resolve the SoftAP channel. Config "channel" 1-13 = manual; blank/0/"auto" = auto-pick 1/6/11.
 // Cached in s_chan after the first resolve so status reporting and restarts reuse the same value
@@ -55,7 +84,7 @@ static int chan() {
   if (s_chan) return s_chan;
   String cv = cfgGet("channel", ""); cv.trim();
   int c = cv.toInt();
-  s_chan = (c >= 1 && c <= 13) ? c : autoPickChannel();
+  s_chan = (c >= 1 && c <= 13) ? c : runChannelScan();
   return s_chan;
 }
 // Live channel for status/BLE reporting (0 until the AP has been brought up once).
