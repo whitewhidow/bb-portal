@@ -47,6 +47,7 @@
   <span id="hHeap" class="chip" hidden></span>
   <span id="hFs" class="chip" hidden></span>
   <span id="hCli" class="chip" hidden></span>
+  <span id="hChan" class="chip" hidden></span>
 </div>
 
 <div id="app" hidden>
@@ -234,6 +235,10 @@ function onNotify(e){
       else $('hFs').hidden=true; }
     const cl=v.match(/cli=(\d+)/); if(cl){ const n=+cl[1];
       $('hCli').textContent='\uD83D\uDC65 '+n; $('hCli').title=n+' device'+(n===1?'':'s')+' on the portal Wi-Fi'; $('hCli').hidden=false; }
+    const ch=v.match(/ch=(\d+)/); if(ch){ const c=+ch[1];
+      if(c){ const cf=cfgFields.find(f=>f.k==='channel'); const manual=cf&&(cf.v||'').trim();
+        $('hChan').textContent='\uD83D\uDCE1 ch'+c; $('hChan').title='live SoftAP channel'+(manual?'':' (auto-picked)'); $('hChan').hidden=false; }
+      else $('hChan').hidden=true; }
     return; }
   if (v.startsWith('apscan:')) { if (v!=='apscan:done' && _apList) _apList.push(v.slice(7)); return; }   // 'apscan:done' resolves its waiter above
   if (v.startsWith('wifi:')) { const p=v.slice(5).split('|'); wifiConfigured=(p[0]&&p[0]!=='-'); $('wifiStat').textContent = 'wifi: ' + p.slice(0,2).join(' — '); return; }

@@ -19,7 +19,7 @@ const CfgField CFG_FIELDS[] = {
   { "sleepsecs",  "Screen off after (s)",'n' },   // 0 = never; backlight off after idle, button wakes (display boards)
   { "ledsecs",    "LED flash seconds",   'n' },   // default 5; SAVED BEFORE "led" so the led=1 demo reads the fresh value
   { "led",        "Flash LED on sign",   'b' },   // default on; hidden by cfgJson on LED-less boards
-  { "channel",    "WiFi channel (1-13)", 'n' },   // SoftAP channel; match the board you're replacing (default 6)
+  { "channel",    "WiFi channel (blank=auto)", 'n' },   // SoftAP channel 1-13; blank/0 = auto-pick least-congested 1/6/11 at boot
   { "txpower",    "TX power dBm (2-20)", 'n' },   // SoftAP max TX power; blank/0 = driver default (max, ~20dBm)
   { "apmac",      "Clone AP MAC",        's' },   // set by "Replace a board"; blank = use this board's own MAC (AA:BB:CC:DD:EE:FF)
 };

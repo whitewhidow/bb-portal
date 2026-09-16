@@ -19,6 +19,7 @@
 void captiveBegin();     // start AP+DNS+HTTP, write default docs on first boot
 void captiveTick();      // call from loop(): service DNS
 void captiveRestartAp(); // re-apply the SSID from config live (no reboot needed)
+int  captiveChannel();   // live SoftAP channel (resolved from config, or auto-picked); 0 before AP is up
 
 // ---- editable documents ("portal" | "done") and read-only "records" ----------
 size_t captiveDocSize(const String& doc);                              // bytes, 0 if missing

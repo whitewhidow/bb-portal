@@ -24,8 +24,42 @@ static AsyncWebServer server(80);
 static String ssid() { String s = cfgGet("ssid", "Building-WiFi"); return s.length() ? s : "Building-WiFi"; }
 static String code() { String s = cfgGet("code", "REPLACE-WITH-CODE"); return s.length() ? s : "REPLACE-WITH-CODE"; }
 
-// SoftAP channel from config, clamped to 2.4GHz 1-13 (the C5 scans 5GHz too, but the captive AP is 2.4GHz).
-static int chan() { int c = cfgGet("channel", "").toInt(); return (c >= 1 && c <= 13) ? c : WIFI_CHANNEL; }
+// Auto-pick the least-congested of channels 1/6/11 (the only non-overlapping 2.4GHz channels).
+// One-shot at boot: needs STA to scan, so run it BEFORE softAP(). Scores each candidate by summing
+// every nearby AP's strength weighted by how much its channel bleeds into the candidate's ~22MHz band.
+static int autoPickChannel() {
+  const int cands[3] = { 1, 6, 11 };
+  // overlap[d] = fraction of an AP d channels away that lands in a candidate's band (0 at >=5 apart).
+  static const float overlap[5] = { 1.0f, 0.8f, 0.6f, 0.4f, 0.2f };
+  long score[3] = { 0, 0, 0 };
+  WiFi.mode(WIFI_AP_STA);                            // STA needed to scan; AP (if up) blips briefly
+  int n = WiFi.scanNetworks(false, false);          // blocking, hide-none
+  for (int i = 0; i < n; i++) {
+    int ch = WiFi.channel(i); if (ch < 1 || ch > 13) continue;   // 2.4GHz only (C5 also lists 5GHz)
+    long w = WiFi.RSSI(i) + 100; if (w < 0) w = 0;  // strong neighbour hurts more (-45->55, -90->10)
+    for (int c = 0; c < 3; c++) { int d = abs(ch - cands[c]); if (d < 5) score[c] += (long)(w * overlap[d]); }
+  }
+  WiFi.scanDelete();
+  int best = 1;                                      // lowest score wins; tie-breaks toward 6 then lower ch
+  for (int c = 0; c < 3; c++) if (score[c] < score[best] || (score[c] == score[best] && cands[c] == 6)) best = c;
+  Serial.printf("[CP] auto-channel: 1=%ld 6=%ld 11=%ld -> picked %d (%d APs seen)\n",
+                score[0], score[1], score[2], cands[best], n);
+  return n > 0 ? cands[best] : WIFI_CHANNEL;         // saw nothing -> default 6
+}
+
+// Resolve the SoftAP channel. Config "channel" 1-13 = manual; blank/0/"auto" = auto-pick 1/6/11.
+// Cached in s_chan after the first resolve so status reporting and restarts reuse the same value
+// (re-scanning would bounce the AP and drop clients).
+static int s_chan = 0;
+static int chan() {
+  if (s_chan) return s_chan;
+  String cv = cfgGet("channel", ""); cv.trim();
+  int c = cv.toInt();
+  s_chan = (c >= 1 && c <= 13) ? c : autoPickChannel();
+  return s_chan;
+}
+// Live channel for status/BLE reporting (0 until the AP has been brought up once).
+int captiveChannel() { return s_chan; }
 // Parse "AA:BB:CC:DD:EE:FF" -> 6 bytes. Returns false on any malformed field.
 static bool parseMac(const String& s, uint8_t out[6]) {
   int n = sscanf(s.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &out[0], &out[1], &out[2], &out[3], &out[4], &out[5]);
