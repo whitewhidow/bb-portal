@@ -43,7 +43,7 @@ static int runChannelScan() {
   static const float overlap[5] = { 1.0f, 0.8f, 0.6f, 0.4f, 0.2f };
   s_scanScore[0] = s_scanScore[1] = s_scanScore[2] = 0; s_scanN = 0;
   WiFi.mode(WIFI_AP_STA);                            // STA needed to scan; AP (if up) blips briefly
-  int n = WiFi.scanNetworks(false, true);           // blocking, include hidden
+  int n = WiFi.scanNetworks(false, true, false, 150);   // blocking, hidden; 150ms/chan (was 300) halves the dual-band C5 scan
   s_scanSeen = n;
   for (int i = 0; i < n; i++) {
     int ch = WiFi.channel(i);

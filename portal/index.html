@@ -411,7 +411,7 @@ $('chScan').onclick=async()=>{
   if(!rxCh){ $('chScores').textContent='not connected'; return; }
   $('chScan').disabled=true; $('chScores').textContent='scanning…'; $('chList').innerHTML=''; _chScan=[];
   try {
-    const done=waitFor('chscan:done', 20000); await send('__CHSCAN__'); const summary=await done;
+    await send('__CHSCAN__'); const summary=await waitFor('chscan:done', 30000);  // start timer AFTER the queued write actually transmits
     const aps=_chScan.map(rpParse).sort((a,b)=>b.rssi-a.rssi); _chScan=null;
     const m={}; summary.slice(12).split('|').forEach(kv=>{ const [k,val]=kv.split('='); m[k]=+val; });
     const chip=(n)=>'<b>ch'+n+'</b> '+(m[n]??'?')+(n==m.pick?' ✓':'');
