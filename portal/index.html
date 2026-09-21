@@ -169,7 +169,7 @@ function log(m){ const e=$('log'); if(!e) return; e.textContent+=m+'\n';
   e.scrollTop=e.scrollHeight; }
 // Generic Board-feedback echo: user actions -> "→ cmd", board replies -> "← reply". Denylists keep
 // background polls, chunk streams and pure status/badge/scan-result lines out of the log.
-const QUIET_TX=['__STATUS__','__WIFIST__','__VER__','__TIME__','__CFGGET__','__HGET__','__HADD__','__RECN__','__APINFO__'];
+const QUIET_TX=['__STATUS__','__WIFIST__','__VER__','__TIME__','__CFGGET__','__HGET__','__HADD__','__CFGADD__','__CFGSETB__','__RECN__','__APINFO__'];
 const QUIET_RX=['st:','ver:','wifi:','wifiget:','ota:','cfg:','recn:','apscan:','chscan:','apinfo:','hget:','hput:','hack:','mac:'];
 function feedTx(s){ if(s && !QUIET_TX.some(q=>s.startsWith(q))) log('→ '+s); }
 function feedRx(v){ if(v && !QUIET_RX.some(q=>v.startsWith(q))) log('← '+v); }
@@ -497,6 +497,18 @@ function renderCfg(json){
   }
   $('cfgForm').innerHTML=h;
 }
+// Set one config value. A value too long for a single BLE write (MTU ~514B; a big
+// {{VALUEn}} like an inline SVG) is sent chunked: begin/append*/commit.
+async function cfgSetValue(k, val){
+  val = String(val);
+  if (val.length > 300){
+    await req('__CFGSETB__:'+k, 'cfg:ready');
+    for (let i=0;i<val.length;i+=200) await req('__CFGADD__:'+val.slice(i,i+200), 'cfg:ack');
+    await req('__CFGSETE__', 'cfg:ok');
+  } else {
+    await send('__CFGSET__:'+k+'='+val); await new Promise(r=>setTimeout(r,120));
+  }
+}
 $('cfgSave').onclick=async()=>{
   $('cfgMsg').textContent='saving…';
   let apChanged=false, macChanged=false;   // ssid/channel re-apply live; a MAC change needs a reboot
@@ -504,7 +516,7 @@ $('cfgSave').onclick=async()=>{
     const val=f.t==='b'?(el.checked?'1':'0'):el.value;
     if ((f.k==='ssid'||f.k==='channel') && val!==(f.v||'')) apChanged=true;
     if (f.k==='apmac' && val!==(f.v||'')) macChanged=true;
-    await send('__CFGSET__:'+f.k+'='+val); await new Promise(r=>setTimeout(r,120)); }
+    await cfgSetValue(f.k, val); }
   if (macChanged){
     if (confirm('The AP MAC change only takes effect after a reboot. Reboot the board now?')) {
       await send('__REBOOT__'); $('cfgMsg').textContent='rebooting — reconnect over BLE once it is back'; return; }
@@ -539,7 +551,7 @@ $('cfgImport').onchange=async(e)=>{
     const cfg=blob.config||{};
     let ssidChanged=false;
     for (const [k,v] of Object.entries(cfg)){ if(k==='ssid'&&String(v)!==(cfgFields.find(f=>f.k==='ssid')?.v||'')) ssidChanged=true;
-      await send('__CFGSET__:'+k+'='+v); await new Promise(r=>setTimeout(r,120)); }
+      await cfgSetValue(k, v); }
     if (blob.wifi&&blob.wifi.ssid) await send('__WIFI__:'+blob.wifi.ssid+'|'+(blob.wifi.pass||''));
     if (ssidChanged) await send('__APREST__');           // re-advertise the SoftAP under the new name
     await loadConfig();
@@ -563,7 +575,7 @@ $('profSaveAs').onclick=async()=>{ const name=(prompt('Save current config + pag
 $('profLoad').onclick=async()=>{ const name=$('profSel').value; const p=name&&profAll()[name]; if(!p) return;
   if(!confirm('Load profile “'+name+'”? This overwrites the board’s config'+(p.pages?' and both pages':'')+'.')) return;
   $('cfgMsg').textContent='loading profile…';
-  try{ for(const [k,v] of Object.entries(p.cfg||{})){ await send('__CFGSET__:'+k+'='+v); await new Promise(r=>setTimeout(r,120)); }
+  try{ for(const [k,v] of Object.entries(p.cfg||{})){ await cfgSetValue(k, v); }
     if(p.pages){ for(const d of ['portal','done']){ if(typeof p.pages[d]==='string'){ $('cfgMsg').textContent='loading “'+name+'” — '+d+' page…'; await pushDoc(d,p.pages[d]); } } }
     await loadConfig(); $('cfgMsg').textContent='loaded “'+name+'”'; }catch(e){ $('cfgMsg').textContent='load failed: '+e.message; } };
 $('profDel').onclick=()=>{ const name=$('profSel').value; if(!name) return; if(!confirm('Delete profile “'+name+'”?')) return;

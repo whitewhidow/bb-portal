@@ -34,36 +34,43 @@ static int    s_scanSeen = 0;                         // APs the radio actually 
 static long   s_scanScore[3] = { 0, 0, 0 };          // congestion score for 1 / 6 / 11
 static int    s_scanPick = 0;
 
-// Scan 2.4GHz, store every AP found (all of them — for antenna testing, not just candidates), and
-// score channels 1/6/11 by summing each AP's strength weighted by how much it bleeds into that band.
+// Scan the 2.4GHz band (channels 1-13 only) and score channels 1/6/11 by summing each AP's
+// strength weighted by how much it bleeds into that band. We scan ONE channel per call
+// (scanNetworks' channel arg) and loop 1-13, rather than a single all-channel scan: on the
+// dual-band C5 an all-channel scan also sweeps 5GHz, whose DFS channels need long *passive*
+// listening (radar detection) that max_ms_per_chan can't shorten — that made the scan ~20s and
+// timed the portal out. 2.4GHz-only keeps it to ~2-4s. (The captive AP is 2.4GHz and only ch
+// 1-13 matter for its channel choice; 5GHz neighbours are irrelevant here.)
 // Needs STA, so callers run it before softAP() (boot) or restore AP mode after (on-demand).
 static int runChannelScan() {
   const int cands[3] = { 1, 6, 11 };
   // overlap[d] = fraction of an AP d channels away that lands in a candidate's ~22MHz band.
   static const float overlap[5] = { 1.0f, 0.8f, 0.6f, 0.4f, 0.2f };
-  s_scanScore[0] = s_scanScore[1] = s_scanScore[2] = 0; s_scanN = 0;
+  uint32_t t0 = millis();
+  s_scanScore[0] = s_scanScore[1] = s_scanScore[2] = 0; s_scanN = 0; s_scanSeen = 0;
   WiFi.mode(WIFI_AP_STA);                            // STA needed to scan; AP (if up) blips briefly
-  int n = WiFi.scanNetworks(false, true, false, 150);   // blocking, hidden; 150ms/chan (was 300) halves the dual-band C5 scan
-  s_scanSeen = n;
-  for (int i = 0; i < n; i++) {
-    int ch = WiFi.channel(i);
-    long w = WiFi.RSSI(i) + 100; if (w < 0) w = 0;  // strong neighbour hurts more (-45->55, -90->10)
-    if (ch >= 1 && ch <= 13)                         // score 2.4GHz only (C5 also lists 5GHz)
+  for (int ch = 1; ch <= 13; ch++) {                // 2.4GHz only — one channel per call
+    int n = WiFi.scanNetworks(false, true, false, 150, ch);   // blocking, hidden, 150ms dwell, this channel
+    if (n < 0) { WiFi.scanDelete(); continue; }
+    s_scanSeen += n;
+    for (int i = 0; i < n; i++) {
+      long w = WiFi.RSSI(i) + 100; if (w < 0) w = 0;  // strong neighbour hurts more (-45->55, -90->10)
       for (int c = 0; c < 3; c++) { int d = abs(ch - cands[c]); if (d < 5) s_scanScore[c] += (long)(w * overlap[d]); }
-    if (s_scanN < SCAN_MAX) {                        // store everything (incl. 5GHz) for the antenna view
-      ScanAp& a = s_scan[s_scanN++];
-      String ss = WiFi.SSID(i); if (!ss.length()) ss = "(hidden)";
-      strlcpy(a.ssid, ss.c_str(), sizeof(a.ssid));
-      strlcpy(a.bssid, WiFi.BSSIDstr(i).c_str(), sizeof(a.bssid));
-      a.ch = (int8_t)ch; a.rssi = (int8_t)WiFi.RSSI(i);
+      if (s_scanN < SCAN_MAX) {
+        ScanAp& a = s_scan[s_scanN++];
+        String ss = WiFi.SSID(i); if (!ss.length()) ss = "(hidden)";
+        strlcpy(a.ssid, ss.c_str(), sizeof(a.ssid));
+        strlcpy(a.bssid, WiFi.BSSIDstr(i).c_str(), sizeof(a.bssid));
+        a.ch = (int8_t)ch; a.rssi = (int8_t)WiFi.RSSI(i);
+      }
     }
+    WiFi.scanDelete();
   }
-  WiFi.scanDelete();
   int best = 1;                                      // lowest score wins; tie-breaks toward 6 then lower ch
   for (int c = 0; c < 3; c++) if (s_scanScore[c] < s_scanScore[best] || (s_scanScore[c] == s_scanScore[best] && cands[c] == 6)) best = c;
-  s_scanPick = n > 0 ? cands[best] : WIFI_CHANNEL;   // saw nothing -> default 6
-  Serial.printf("[CP] channel scan: 1=%ld 6=%ld 11=%ld -> pick %d (%d APs, %d stored)\n",
-                s_scanScore[0], s_scanScore[1], s_scanScore[2], s_scanPick, s_scanSeen, s_scanN);
+  s_scanPick = s_scanSeen > 0 ? cands[best] : WIFI_CHANNEL;   // saw nothing -> default 6
+  Serial.printf("[CP] channel scan: 1=%ld 6=%ld 11=%ld -> pick %d (%d APs, %d stored) in %lums\n",
+                s_scanScore[0], s_scanScore[1], s_scanScore[2], s_scanPick, s_scanSeen, s_scanN, millis() - t0);
   return s_scanPick;
 }
 
@@ -401,6 +408,14 @@ void captiveBegin() {
   // the AP live only as C++ fallbacks).
   if (cfgGet("ssid", "") == "") cfgSet("ssid", "Building-WiFi");
   if (cfgGet("code", "") == "") cfgSet("code", "REPLACE-WITH-CODE");
+
+  // DIAGNOSTIC: log each doc's size as read from flash at boot, BEFORE writeIfMissing.
+  // If a page you saved comes back 0/missing here, the save didn't persist (and
+  // writeIfMissing then restores the default) — the "edits vanish on reboot" bug.
+  { size_t ps = 0, ds = 0; File a = LittleFS.open("/portal.html", FILE_READ);
+    if (a) { ps = a.size(); a.close(); } File b = LittleFS.open("/done.html", FILE_READ);
+    if (b) { ds = b.size(); b.close(); }
+    Serial.printf("[CP] boot doc sizes (from flash): portal=%u done=%u\n", (unsigned)ps, (unsigned)ds); }
 
   writeIfMissing("/portal.html", DEFAULT_PORTAL);
   writeIfMissing("/done.html",   DEFAULT_DONE);

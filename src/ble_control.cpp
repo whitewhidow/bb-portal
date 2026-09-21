@@ -21,8 +21,9 @@
 #define CTRL_TX  "a0b00002-1234-4b0a-9c5e-000000000000"
 
 static NimBLECharacteristic* s_tx = nullptr;
-static char          g_cmd[320] = "";
+static char          g_cmd[2048] = "";   // RX command buffer: big enough for long __CFGSET__ values (was 320 — long values were dropped)
 static volatile bool g_cmdReq   = false;
+static String        s_cfgKey, s_cfgAcc;   // chunked config-set: a value too long for one BLE write (e.g. an inline SVG)
 static bool          g_connected = false;
 static uint16_t      g_connHandle = BLE_HS_CONN_HANDLE_NONE;   // for the link RSSI
 static char          g_mac[18]  = "";
@@ -49,6 +50,9 @@ class RxCB : public NimBLECharacteristicCallbacks {
     NimBLEAttValue v = c->getValue();
     if (v.length() && v.length() < sizeof(g_cmd) && !g_cmdReq) {
       memcpy(g_cmd, v.data(), v.length()); g_cmd[v.length()] = 0; g_cmdReq = true;
+    } else if (v.length() >= sizeof(g_cmd)) {
+      Serial.printf("[BLE] DROPPED write of %u bytes (> g_cmd %u) — command too long\n",
+                    (unsigned)v.length(), (unsigned)sizeof(g_cmd));   // e.g. a long __CFGSET__ value
     }
   }
 };
@@ -135,6 +139,16 @@ static void handleCmd(const char* cmd) {
       if (key == "led" && val[0] == '1') ledFlash(cfgLedMs());   // preview the sign flash when LEDs are switched on
       bleNotify("cfg:ok");
     }
+  } else if (!strncmp(cmd, "__CFGSETB__:", 12)) {              // chunked value begin: "__CFGSETB__:key"
+    s_cfgKey = cmd + 12; s_cfgAcc = ""; bleNotify("cfg:ready");
+  } else if (!strncmp(cmd, "__CFGADD__:", 11)) {               // append one raw chunk of the value
+    s_cfgAcc += (cmd + 11); bleNotify("cfg:ack");
+  } else if (!strcmp(cmd, "__CFGSETE__")) {                    // commit the accumulated value
+    if (s_cfgKey.length()) {
+      cfgSet(s_cfgKey.c_str(), s_cfgAcc.c_str());
+      if (s_cfgKey == "led" && s_cfgAcc.startsWith("1")) ledFlash(cfgLedMs());
+    }
+    s_cfgKey = ""; s_cfgAcc = ""; bleNotify("cfg:ok");
   } else {
     if (!appHandleCommand(cmd)) bleNotify((String("err:unknown ") + cmd).c_str());
   }
