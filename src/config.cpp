@@ -41,8 +41,27 @@ uint32_t cfgLedMs() {
   return (uint32_t)sec * 1000;
 }
 
+// Escape a value for a JSON string. MUST handle control chars (tab/newline/…): a
+// value can now hold arbitrary text (e.g. an inline SVG in {{VALUEn}}), and a raw
+// control char makes cfgJson invalid JSON -> the portal's JSON.parse throws and the
+// whole config form fails to load.
 static String jesc(const String& in) {
-  String o; for (char c : in) { if (c == '"' || c == '\\') o += '\\'; o += c; } return o;
+  String o; o.reserve(in.length() + 8);
+  for (char c : in) {
+    switch (c) {
+      case '"':  o += "\\\""; break;
+      case '\\': o += "\\\\"; break;
+      case '\b': o += "\\b";  break;
+      case '\f': o += "\\f";  break;
+      case '\n': o += "\\n";  break;
+      case '\r': o += "\\r";  break;
+      case '\t': o += "\\t";  break;
+      default:
+        if ((uint8_t)c < 0x20) { char b[7]; snprintf(b, sizeof(b), "\\u%04x", (uint8_t)c); o += b; }
+        else o += c;
+    }
+  }
+  return o;
 }
 String cfgJson() {
   String s = "cfg:["; bool first = true;
