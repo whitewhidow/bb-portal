@@ -80,6 +80,7 @@
     <div class="row"><b id="recCount">0 records</b><span style="flex:1"></span>
       <button id="recRefresh" class="sec">Refresh</button>
       <button id="recCsv" class="sec">CSV</button>
+      <button id="recRaw" class="sec">Raw</button>
       <button id="recClear" class="warn">Clear</button></div>
     <div class="sub" id="recMsg"></div>
     <div class="tblwrap"><table id="recTbl"><thead></thead><tbody></tbody></table></div>
@@ -200,6 +201,32 @@ async function reqRetry(cmd, prefix, tries=3, ms=6000){
   for (let i=0;i<tries;i++){ try { return await req(cmd, prefix, ms); } catch(e){ if(i===tries-1) throw e; } }
 }
 
+// ---- chunked doc transfer (records | portal | done) --------------------------
+// Responses are matched only by the 'hget:' prefix, so two overlapping transfers
+// (e.g. the page editor still finishing while Records opens) could each swallow the
+// other's chunks — that's how page CSS once bled into the records view. Two guards:
+//   1) withXfer() serializes whole transfers so they never overlap.
+//   2) every reply is tagged with its doc; a chunk whose tag doesn't match what we
+//      asked for is discarded and re-requested. Older firmware sends the untagged
+//      form (hget:<off>:<total>:<b64>), still accepted so the page works pre-reflash.
+let _xfer = Promise.resolve();
+function withXfer(fn){ const run = _xfer.catch(()=>{}).then(fn); _xfer = run.catch(()=>{}); return run; }
+function parseHget(line, doc){
+  let m = line.match(/^hget:([a-z]+):(\d+):(\d+):(.*)$/);   // tagged (current firmware)
+  if (m) return (m[1]===doc) ? {off:+m[2], total:+m[3], b64:m[4]} : null;   // null = stray chunk
+  m = line.match(/^hget:(\d+):(\d+):(.*)$/);                // legacy untagged
+  if (m) return {off:+m[1], total:+m[2], b64:m[3]};
+  return null;
+}
+async function hgetChunk(doc, off){
+  for (let i=0;i<4;i++){
+    const line = await reqRetry('__HGET__:'+doc+':'+off, 'hget:');
+    const r = parseHget(line, doc);
+    if (r) return r;                                        // null => wrong-doc chunk, ask again
+  }
+  throw new Error('hget: wrong doc for '+doc);
+}
+
 // ---- tabs ----
 for (const t of document.querySelectorAll('.tab')) t.onclick=()=>{
   for (const x of document.querySelectorAll('.tab')) x.classList.toggle('active', x===t);
@@ -255,13 +282,13 @@ function setRecCount(n){ $('hRecs').textContent=n+' records'; $('recCount').text
 
 // ================= HTML editor (chunked doc transfer over BLE) =================
 // Raw doc get/set (used by the editor AND by settings export/import).
-async function fetchDoc(doc){
+async function fetchDoc(doc){ return withXfer(async()=>{
   let off=0,total=1,buf=[];
-  while(off<total){ const line=await reqRetry('__HGET__:'+doc+':'+off,'hget:'); const m=line.match(/^hget:(\d+):(\d+):(.*)$/); if(!m) break;
-    const nextoff=+m[1]; total=+m[2]; if(m[3]){ const bin=atob(m[3]); for(let i=0;i<bin.length;i++) buf.push(bin.charCodeAt(i)); }
-    if(nextoff<=off) break; off=nextoff; }
+  while(off<total){ const c=await hgetChunk(doc,off); total=c.total;
+    if(c.b64){ const bin=atob(c.b64); for(let i=0;i<bin.length;i++) buf.push(bin.charCodeAt(i)); }
+    if(c.off<=off) break; off=c.off; }
   return new TextDecoder('utf-8').decode(new Uint8Array(buf));
-}
+}); }
 async function pushDoc(doc,text){
   const bytes=new TextEncoder().encode(text);
   const r=await req('__HPUT__:'+doc,'hput:'); if(r!=='hput:ready') throw new Error('board not ready ('+doc+')');
@@ -271,18 +298,18 @@ async function pushDoc(doc,text){
 async function docLoad(){
   const doc=$('docSel').value; $('docMsg').textContent='loading…'; $('docTxt').value='';
   try {
-    let off=0, total=1, buf=[];
-    while (off<total) {
-      const line = await req('__HGET__:'+doc+':'+off, 'hget:');
-      const m = line.match(/^hget:(\d+):(\d+):(.*)$/);
-      if (!m) break;
-      const nextoff=+m[1], tot=+m[2], b64=m[3];
-      total=tot;
-      if (b64) { const bin=atob(b64); for (let i=0;i<bin.length;i++) buf.push(bin.charCodeAt(i)); }
-      if (nextoff<=off) break;
-      off=nextoff;
-      $('docMsg').textContent='loading… '+Math.round(100*off/Math.max(total,1))+'%';
-    }
+    const buf = await withXfer(async()=>{
+      let off=0, total=1, b=[];
+      while (off<total) {
+        const c = await hgetChunk(doc, off);
+        total=c.total;
+        if (c.b64) { const bin=atob(c.b64); for (let i=0;i<bin.length;i++) b.push(bin.charCodeAt(i)); }
+        if (c.off<=off) break;
+        off=c.off;
+        $('docMsg').textContent='loading… '+Math.round(100*off/Math.max(total,1))+'%';
+      }
+      return b;
+    });
     $('docTxt').value = new TextDecoder('utf-8').decode(new Uint8Array(buf));
     $('docMsg').textContent = buf.length ? ('loaded '+buf.length+' bytes') : 'empty (new page)';
   } catch(e){ $('docMsg').textContent='load failed: '+e.message; }
@@ -346,19 +373,23 @@ async function loadRecords(){
   $('recMsg').textContent='loading…';
   try {
     const cnt = await reqRetry('__RECN__','recn:'); setRecCount(+cnt.slice(5));
-    let off=0,total=1,buf=[];
-    while (off<total){
-      const line=await reqRetry('__HGET__:records:'+off,'hget:');
-      const m=line.match(/^hget:(\d+):(\d+):(.*)$/); if(!m) break;
-      const nextoff=+m[1]; total=+m[2]; const b64=m[3];
-      if (b64){ const bin=atob(b64); for(let i=0;i<bin.length;i++) buf.push(bin.charCodeAt(i)); }
-      if (nextoff<=off) break; off=nextoff;
-    }
+    const buf = await withXfer(async()=>{
+      let off=0,total=1,b=[];
+      while (off<total){
+        const c=await hgetChunk('records',off); total=c.total;
+        if (c.b64){ const bin=atob(c.b64); for(let i=0;i<bin.length;i++) b.push(bin.charCodeAt(i)); }
+        if (c.off<=off) break; off=c.off;
+      }
+      return b;
+    });
     const text=new TextDecoder('utf-8').decode(new Uint8Array(buf));
-    recRows = text.split('\n').filter(l=>l.trim()).map(l=>{try{return JSON.parse(l)}catch(e){return null}}).filter(Boolean);
+    const lines=text.split('\n').filter(l=>l.trim());
+    const bad=[];
+    recRows = lines.map((l,i)=>{try{return JSON.parse(l)}catch(e){bad.push({i,err:e.message,line:l});return null}}).filter(Boolean);
+    if(bad.length){ log('[REC] dropped '+bad.length+' unparseable line(s) of '+lines.length+':'); bad.forEach(b=>log('  line '+(b.i+1)+' ('+b.err+'): '+b.line)); }
     recRows = recRows.map(r=>{ if(r.at && +r.at>0){ r.time=new Date(+r.at*1000).toLocaleString(); delete r.at; delete r.up; } return r; });
     renderRecords();
-    $('recMsg').textContent=recRows.length?'':'no records yet';
+    $('recMsg').textContent = bad.length ? ('showing '+recRows.length+' of '+lines.length+' — '+bad.length+' line(s) unparseable (see Log)') : (recRows.length?'':'no records yet');
   } catch(e){ $('recMsg').textContent='load failed: '+e.message; }
 }
 function recColumns(){
@@ -372,6 +403,29 @@ function renderRecords(){
 }
 function esc(s){ return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 $('recRefresh').onclick=loadRecords;
+// Salvage dump: fetch the EXACT bytes of /records.jsonl, stepping over a corrupt
+// block instead of stopping at it (loadRecords/fetchDoc bail on the first empty
+// read, which strands any records written after the corruption). Raw, no parsing.
+$('recRaw').onclick=async()=>{
+  $('recMsg').textContent='reading raw…';
+  try{
+    const {buf,total,holes} = await withXfer(async()=>{
+    let off=0,total=0,buf=[],holes=0,guard=0;
+    { const c=await hgetChunk('records',0); total=c.total; }
+    while(off<total && guard++<20000){
+      const c=await hgetChunk('records',off); total=c.total;
+      if(c.b64){ const bin=atob(c.b64); for(let i=0;i<bin.length;i++) buf.push(bin.charCodeAt(i)); }
+      if(c.off>off){ off=c.off; } else { off+=120; holes++; }   // hop over a dead block
+    }
+    return {buf,total,holes};
+    });
+    const bytes=new Uint8Array(buf);
+    log('[REC] raw dump: '+bytes.length+' bytes of '+total+' reported'+(holes?(' — skipped '+holes+' unreadable block(s)'):''));
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([bytes],{type:'application/octet-stream'})); a.download='records-raw.jsonl'; a.click();
+    $('recMsg').textContent='raw saved ('+bytes.length+' bytes'+(holes?(', '+holes+' block(s) skipped'):'')+')';
+  }catch(e){ $('recMsg').textContent='raw read failed: '+e.message; }
+};
 $('recClear').onclick=async()=>{ if(!confirm('Delete ALL records on the board? This cannot be undone.')) return; await req('__RECCLR__','recn:'); recRows=[]; renderRecords(); $('recMsg').textContent='cleared'; };
 $('recCsv').onclick=()=>{
   if(!recRows.length){ $('recMsg').textContent='nothing to export'; return; }

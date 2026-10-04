@@ -68,7 +68,10 @@ bool appHandleCommand(const char* cmd) {
     uint8_t raw[RAW_CHUNK];
     int got = captiveDocRead(doc, off, raw, RAW_CHUNK);
     size_t total = captiveDocSize(doc);
-    String line = "hget:" + String(off + (got > 0 ? got : 0)) + ":" + String(total) + ":";
+    // Tag the reply with the doc name so the page can tell a records chunk from a
+    // portal/done chunk — two transfers matched only by the "hget:" prefix used to
+    // cross-contaminate (page CSS bleeding into the records view).
+    String line = "hget:" + doc + ":" + String(off + (got > 0 ? got : 0)) + ":" + String(total) + ":";
     if (got > 0) line += b64enc(raw, got);
     bleNotify(line.c_str());
     return true;
